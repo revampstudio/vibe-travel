@@ -120,6 +120,14 @@ export default function Onboarding() {
       >
         {/* Header */}
         <div className="text-center mb-16">
+          <motion.img
+            src="/logo-512.png"
+            alt=""
+            className="size-16 mx-auto mb-6"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+          />
           <motion.h1
             className="font-serif text-5xl md:text-6xl font-semibold tracking-tight text-text text-balance mb-5"
             initial={{ opacity: 0, y: 16 }}

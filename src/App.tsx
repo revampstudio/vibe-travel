@@ -42,6 +42,12 @@ export default function App() {
       {(view === 'globe' || view === 'detail') && (
         <div className="w-full h-full relative">
           <GlobeMap />
+          <div className="absolute top-4 left-4 z-20 flex items-center gap-2.5 pointer-events-none select-none">
+            <img src="/logo-512.png" alt="" className="size-8" />
+            <span className="font-serif text-base font-semibold text-text tracking-tight">
+              Soul Cartography
+            </span>
+          </div>
           <SettingsPanel />
           <AnimatePresence>
             {view === 'detail' && <CityPanel key="city-panel" />}
