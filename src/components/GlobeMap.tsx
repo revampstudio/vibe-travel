@@ -384,15 +384,19 @@ export default function GlobeMap() {
       interactiveLayerIds={['city-circles', 'city-labels']}
       cursor={hoveredCity ? 'pointer' : 'grab'}
     >
-      <Source id="astro-lines" type="geojson" data={linesGeoJSON}>
-        <Layer {...lineLayer} />
-      </Source>
+      {mapLoaded && (
+        <>
+          <Source id="astro-lines" type="geojson" data={linesGeoJSON}>
+            <Layer {...lineLayer} />
+          </Source>
 
-      <Source id="cities" type="geojson" data={citiesGeoJSON}>
-        <Layer {...cityGlowLayer} />
-        <Layer {...cityCircleLayer} />
-        <Layer {...cityLabelLayer} />
-      </Source>
+          <Source id="cities" type="geojson" data={citiesGeoJSON}>
+            <Layer {...cityGlowLayer} />
+            <Layer {...cityCircleLayer} />
+            <Layer {...cityLabelLayer} />
+          </Source>
+        </>
+      )}
 
       {hoveredCity && (
         <Popup

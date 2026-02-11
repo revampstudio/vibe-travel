@@ -151,7 +151,7 @@ export default function SettingsPanel() {
             exit={{ opacity: 0, y: -8, scale: 0.95 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="p-4 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+            <div className="p-4 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
               <h3 className="text-sm font-semibold text-text">Edit birth data</h3>
 
               <div className="grid grid-cols-2 gap-3">
