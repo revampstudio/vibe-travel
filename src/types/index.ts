@@ -69,4 +69,6 @@ export interface AppState {
   setCities: (cities: CityWithEnergy[]) => void
   setSelectedCity: (city: CityWithEnergy | null) => void
   togglePlanet: (planet: Planet) => void
+  highlightedCity: string | null          // "CityName|Country" key
+  setHighlightedCity: (key: string | null) => void
 }

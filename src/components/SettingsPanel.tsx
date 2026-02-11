@@ -19,6 +19,7 @@ export default function SettingsPanel() {
   const { setBirthData, setProfile, setAstroLines, setCities, setSelectedCity, setView } = useStore()
 
   const [open, setOpen] = useState(false)
+  const [showHow, setShowHow] = useState(false)
   const [date, setDate] = useState(birthData?.date ?? '')
   const [time, setTime] = useState(birthData?.time ?? '12:00')
   const [cityQuery, setCityQuery] = useState(birthData?.city ?? '')
@@ -110,7 +111,7 @@ export default function SettingsPanel() {
   const isValid = date && selectedGeo
 
   return (
-    <div ref={panelRef} className="absolute top-4 left-4 z-30">
+    <div ref={panelRef} className={`absolute top-4 left-4 ${open ? 'z-30' : 'z-10'}`}>
       <motion.button
         onClick={() => setOpen((o) => !o)}
         className="size-10 rounded-xl bg-white/90 backdrop-blur-md border border-border/60
@@ -143,14 +144,14 @@ export default function SettingsPanel() {
       <AnimatePresence>
         {open && (
           <motion.div
-            className="absolute top-12 left-0 w-80 bg-white/95 backdrop-blur-md
-                       rounded-2xl border border-border/60 shadow-lg overflow-visible"
+            className="absolute top-12 left-0 w-80 max-h-[calc(100vh-5rem)] bg-white/95 backdrop-blur-md
+                       rounded-2xl border border-border/60 shadow-lg flex flex-col"
             initial={{ opacity: 0, y: -8, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.95 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
               <h3 className="text-sm font-semibold text-text">Edit birth data</h3>
 
               <div className="grid grid-cols-2 gap-3">
@@ -223,6 +224,58 @@ export default function SettingsPanel() {
               >
                 {saving ? 'Recalculating...' : 'Update'}
               </button>
+
+              {/* How it works */}
+              <div className="border-t border-border/60 pt-3">
+                <button
+                  onClick={() => setShowHow((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs text-muted hover:text-text transition-colors cursor-pointer w-full"
+                >
+                  <svg
+                    className={`size-3 transition-transform duration-200 ${showHow ? 'rotate-90' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span className="font-medium">How it works</span>
+                </button>
+                <AnimatePresence>
+                  {showHow && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pt-2.5 space-y-2.5 text-[11px] text-muted leading-relaxed">
+                        <div>
+                          <span className="font-semibold text-text">Astro lines</span> &mdash; Your
+                          birth date and time determine where each planet's Midheaven, IC, Ascendant,
+                          and Descendant lines fall on the globe. These are the colored curves on the map.
+                        </div>
+                        <div>
+                          <span className="font-semibold text-text">Energy score</span> &mdash; Cities
+                          near more of your astro lines receive a higher energy score, shown as the red
+                          markers and the energy bar on each card.
+                        </div>
+                        <div>
+                          <span className="font-semibold text-text">Personal year</span> &mdash; Your
+                          birth date produces a numerology life path and personal year number (1&ndash;9,
+                          or master numbers 11/22/33). Each year number has a theme and a set of
+                          planet&ndash;line combinations that support it.
+                        </div>
+                        <div>
+                          <span className="font-semibold text-text">Recommendations</span> &mdash; Cities
+                          are ranked by a blend of 60% numerology relevance (how well a city's active
+                          lines match your personal year's needs) and 40% raw energy alignment. The top 8
+                          become your picks.
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </motion.div>
         )}

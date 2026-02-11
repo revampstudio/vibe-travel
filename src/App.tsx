@@ -9,6 +9,7 @@ import Onboarding from './components/Onboarding.tsx'
 import GlobeMap from './components/GlobeMap.tsx'
 import CityPanel from './components/CityPanel.tsx'
 import SettingsPanel from './components/SettingsPanel.tsx'
+import RecommendationSidebar from './components/RecommendationSidebar.tsx'
 
 export default function App() {
   const view = useStore((s) => s.view)
@@ -42,13 +43,10 @@ export default function App() {
       {(view === 'globe' || view === 'detail') && (
         <div className="w-full h-full relative">
           <GlobeMap />
-          <div className="absolute top-4 left-4 z-20 flex items-center gap-2.5 pointer-events-none select-none">
-            <img src="/logo-512.png" alt="" className="size-8" />
-            <span className="font-serif text-base font-semibold text-text tracking-tight">
-              Soul Cartography
-            </span>
-          </div>
           <SettingsPanel />
+          <AnimatePresence>
+            {view === 'globe' && <RecommendationSidebar key="rec-sidebar" />}
+          </AnimatePresence>
           <AnimatePresence>
             {view === 'detail' && <CityPanel key="city-panel" />}
           </AnimatePresence>

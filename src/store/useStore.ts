@@ -34,6 +34,7 @@ export const useStore = create<AppState>((set) => ({
   cities: [],
   selectedCity: null,
   enabledPlanets: new Set<Planet>(['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn']),
+  highlightedCity: null,
 
   setView: (view) => set({ view }),
   setBirthData: (birthData) => {
@@ -54,4 +55,5 @@ export const useStore = create<AppState>((set) => ({
       }
       return { enabledPlanets: next }
     }),
+  setHighlightedCity: (highlightedCity) => set({ highlightedCity }),
 }))

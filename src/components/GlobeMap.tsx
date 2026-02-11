@@ -27,9 +27,12 @@ export default function GlobeMap() {
   const setSelectedCity = useStore((s) => s.setSelectedCity)
   const setView = useStore((s) => s.setView)
   const selectedCity = useStore((s) => s.selectedCity)
+  const highlightedCity = useStore((s) => s.highlightedCity)
+  const setHighlightedCity = useStore((s) => s.setHighlightedCity)
   const [mapLoaded, setMapLoaded] = useState(false)
   const [hoveredCity, setHoveredCity] = useState<HoveredCity | null>(null)
   const hoveredIdRef = useRef<number | null>(null)
+  const externalHighlightIdRef = useRef<number | null>(null)
   const [zoom, setZoom] = useState(2)
 
   const filteredLines = useMemo(
@@ -82,7 +85,10 @@ export default function GlobeMap() {
     })),
   }), [visibleCities, enabledPlanets])
 
+  const internalClickRef = useRef(false)
+
   const handleCityClick = useCallback((city: CityWithEnergy) => {
+    internalClickRef.current = true
     setSelectedCity(city)
     setView('detail')
 
@@ -96,7 +102,22 @@ export default function GlobeMap() {
     })
   }, [setSelectedCity, setView])
 
+  // Fly to city when selected externally (e.g. from sidebar)
   useEffect(() => {
+    if (selectedCity && mapRef.current && mapLoaded) {
+      if (internalClickRef.current) {
+        internalClickRef.current = false
+        return
+      }
+      mapRef.current.flyTo({
+        center: [selectedCity.lng, selectedCity.lat],
+        zoom: 9,
+        pitch: 45,
+        bearing: -20,
+        duration: 2500,
+        essential: true,
+      })
+    }
     if (!selectedCity && mapRef.current && mapLoaded) {
       mapRef.current.flyTo({
         zoom: 2,
@@ -106,6 +127,39 @@ export default function GlobeMap() {
       })
     }
   }, [selectedCity, mapLoaded])
+
+  // Sync highlightedCity (from sidebar hover) → Mapbox feature-state
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return
+    const map = mapRef.current.getMap()
+    if (!map.getSource('cities')) return
+
+    // Clear previous external highlight
+    if (externalHighlightIdRef.current !== null) {
+      map.setFeatureState(
+        { source: 'cities', id: externalHighlightIdRef.current },
+        { hover: false },
+      )
+      externalHighlightIdRef.current = null
+    }
+
+    if (highlightedCity) {
+      const [name, country] = highlightedCity.split('|')
+      const idx = visibleCities.findIndex(
+        (c) => c.name === name && c.country === country,
+      )
+      if (idx !== -1) {
+        // Don't double-highlight if user's mouse is already on the same feature
+        if (hoveredIdRef.current !== idx) {
+          externalHighlightIdRef.current = idx
+          map.setFeatureState(
+            { source: 'cities', id: idx },
+            { hover: true },
+          )
+        }
+      }
+    }
+  }, [highlightedCity, visibleCities, mapLoaded])
 
   const handleMouseMove = useCallback((e: MapMouseEvent) => {
     if (!mapRef.current) return
@@ -150,12 +204,14 @@ export default function GlobeMap() {
             energyScore: city.energyScore,
             lineCount: props.lineCount as number,
           })
+          setHighlightedCity(`${city.name}|${city.country}`)
         }
       }
     } else {
       setHoveredCity(null)
+      setHighlightedCity(null)
     }
-  }, [visibleCities])
+  }, [visibleCities, setHighlightedCity])
 
   const handleMouseLeave = useCallback(() => {
     if (hoveredIdRef.current !== null && mapRef.current) {
@@ -166,7 +222,8 @@ export default function GlobeMap() {
       hoveredIdRef.current = null
     }
     setHoveredCity(null)
-  }, [])
+    setHighlightedCity(null)
+  }, [setHighlightedCity])
 
   const lineLayer = {
     id: 'astro-lines',
