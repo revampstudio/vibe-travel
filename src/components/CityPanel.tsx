@@ -2,28 +2,22 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useStore } from '../store/useStore.ts'
 import { getInterpretation } from '../lib/interpretations.ts'
+import { fetchTravelAdvisory, type TravelAdvisory } from '../lib/travelAdvisory.ts'
 import type { Planet, LineType } from '../types/index.ts'
 
 const wikiCache = new Map<string, string>()
 
 function useWikiSummary(cityName: string, country: string) {
-  const [summary, setSummary] = useState<string | null>(wikiCache.get(cityName) ?? null)
-  const [loading, setLoading] = useState(!wikiCache.has(cityName))
+  const [, setCacheVersion] = useState(0)
 
   useEffect(() => {
     if (!cityName) {
-      setLoading(false)
       return
     }
 
     if (wikiCache.has(cityName)) {
-      setSummary(wikiCache.get(cityName)!)
-      setLoading(false)
       return
     }
-
-    setLoading(true)
-    setSummary(null)
 
     const controller = new AbortController()
     const encoded = encodeURIComponent(cityName.replace(/ /g, '_'))
@@ -35,20 +29,22 @@ function useWikiSummary(cityName: string, country: string) {
       .then((data) => {
         const text = data.extract ?? ''
         wikiCache.set(cityName, text)
-        setSummary(text)
+        if (!controller.signal.aborted) {
+          setCacheVersion((value) => value + 1)
+        }
       })
       .catch(() => {
         if (!controller.signal.aborted) {
           wikiCache.set(cityName, '')
-          setSummary('')
+          setCacheVersion((value) => value + 1)
         }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
       })
 
     return () => controller.abort()
   }, [cityName, country])
+
+  const summary = wikiCache.get(cityName) ?? null
+  const loading = Boolean(cityName) && !wikiCache.has(cityName)
 
   return { summary, loading }
 }
@@ -63,6 +59,68 @@ const LINE_LABELS: Record<LineType, string> = {
   MC: 'Midheaven', IC: 'Imum Coeli', ASC: 'Ascendant', DSC: 'Descendant',
 }
 
+const ADVISORY_STYLES: Record<1 | 2 | 3 | 4, { panel: string, badge: string }> = {
+  1: {
+    panel: 'border-emerald-200 bg-emerald-50/60',
+    badge: 'bg-emerald-100 text-emerald-800',
+  },
+  2: {
+    panel: 'border-amber-200 bg-amber-50/70',
+    badge: 'bg-amber-100 text-amber-800',
+  },
+  3: {
+    panel: 'border-orange-200 bg-orange-50/70',
+    badge: 'bg-orange-100 text-orange-800',
+  },
+  4: {
+    panel: 'border-red-200 bg-red-50/70',
+    badge: 'bg-red-100 text-red-800',
+  },
+}
+
+function useTravelAdvisory(country: string) {
+  const [advisoriesByCountry, setAdvisoriesByCountry] = useState<Record<string, TravelAdvisory | null>>({})
+
+  useEffect(() => {
+    if (!country) {
+      return
+    }
+
+    if (Object.prototype.hasOwnProperty.call(advisoriesByCountry, country)) {
+      return
+    }
+
+    const controller = new AbortController()
+    fetchTravelAdvisory(country, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return
+        setAdvisoriesByCountry((current) => {
+          if (Object.prototype.hasOwnProperty.call(current, country)) return current
+          return { ...current, [country]: result }
+        })
+      })
+
+    return () => controller.abort()
+  }, [country, advisoriesByCountry])
+
+  const hasLoadedCountry = Object.prototype.hasOwnProperty.call(advisoriesByCountry, country)
+  const advisory = hasLoadedCountry ? advisoriesByCountry[country] : null
+  const loading = Boolean(country) && !hasLoadedCountry
+
+  return { advisory, loading }
+}
+
+function formatAdvisoryDate(value: string): string {
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return 'Date unavailable'
+
+  return new Intl.DateTimeFormat('en-AU', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(timestamp))
+}
+
 export default function CityPanel() {
   const selectedCity = useStore((s) => s.selectedCity)
   const setSelectedCity = useStore((s) => s.setSelectedCity)
@@ -71,6 +129,9 @@ export default function CityPanel() {
 
   const { summary: wikiSummary, loading: wikiLoading } = useWikiSummary(
     selectedCity?.name ?? '',
+    selectedCity?.country ?? '',
+  )
+  const { advisory, loading: advisoryLoading } = useTravelAdvisory(
     selectedCity?.country ?? '',
   )
 
@@ -145,6 +206,69 @@ export default function CityPanel() {
             </div>
           </div>
         </div>
+
+        {/* Travel advisory */}
+        {(advisoryLoading || advisory) && (
+          <section className="px-6 py-8 border-b border-border">
+            <h3 className="text-lg font-semibold text-text mb-4">
+              Australian Government Travel Advisory
+            </h3>
+
+            {advisoryLoading ? (
+              <div className="space-y-2.5">
+                <div className="h-3 bg-surface rounded-full w-full animate-pulse" />
+                <div className="h-3 bg-surface rounded-full w-5/6 animate-pulse" />
+                <div className="h-3 bg-surface rounded-full w-2/3 animate-pulse" />
+              </div>
+            ) : advisory ? (
+              <div className={`rounded-2xl border p-5 ${ADVISORY_STYLES[advisory.adviceLevel].panel}`}>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <p className="text-sm font-semibold text-text">
+                    {advisory.matchedCountry}
+                  </p>
+                  <span
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-full ${ADVISORY_STYLES[advisory.adviceLevel].badge}`}
+                  >
+                    Level {advisory.adviceLevel}
+                  </span>
+                </div>
+
+                <p className="text-sm font-medium text-text mb-2">{advisory.adviceLabel}</p>
+                <p className="text-sm text-muted leading-relaxed text-pretty">
+                  {advisory.summary}
+                </p>
+
+                {advisory.regionalAdvisories.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted mb-1.5">
+                      Regional Notes
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {advisory.regionalAdvisories.slice(0, 3).map((note) => (
+                        <li key={note} className="text-sm text-muted leading-relaxed">{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted">
+                    Updated {formatAdvisoryDate(advisory.updatedAt)}
+                    {advisory.freshness === 'stale' && ' (cached)'}
+                  </p>
+                  <a
+                    href={advisory.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
+                  >
+                    Official source
+                  </a>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        )}
 
         {/* About this city */}
         {(wikiLoading || wikiSummary) && (
