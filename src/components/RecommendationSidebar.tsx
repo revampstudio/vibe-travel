@@ -17,7 +17,7 @@ export default function RecommendationSidebar() {
   const setView = useStore((s) => s.setView)
   const highlightedCity = useStore((s) => s.highlightedCity)
   const setHighlightedCity = useStore((s) => s.setHighlightedCity)
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
 
@@ -86,9 +86,14 @@ export default function RecommendationSidebar() {
             <div className="pt-16 flex flex-col h-full min-h-0">
               {/* Header */}
               <div className="flex items-center justify-between px-5 pb-3 flex-shrink-0">
-                <h2 className="font-serif text-sm font-semibold text-text tracking-tight">
-                  Recommended for You
-                </h2>
+                <div>
+                  <h2 className="font-serif text-sm font-semibold text-text tracking-tight">
+                    Recommended for You
+                  </h2>
+                  <p className="text-[10px] text-muted mt-1">
+                    Highest energy first, regionally diversified.
+                  </p>
+                </div>
                 <button
                   onClick={() => setExpanded(false)}
                   className="size-7 rounded-lg flex items-center justify-center text-muted
@@ -123,7 +128,7 @@ export default function RecommendationSidebar() {
                 </div>
 
                 {/* City cards */}
-                {ranked.map(({ city, reason, matchingInfluences }) => {
+                {ranked.map(({ city, reason, matchingInfluences, isTopEnergyPick }) => {
                   const key = cityKey(city)
                   const isHighlighted = highlightedCity === key
                   const relativeEnergy = city.energyScore / maxEnergy
@@ -153,6 +158,11 @@ export default function RecommendationSidebar() {
                             {city.name}
                           </span>
                           <span className="text-xs text-muted ml-1.5">{city.country}</span>
+                          {isTopEnergyPick && (
+                            <span className="ml-1.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                              Top energy
+                            </span>
+                          )}
                         </div>
                       </div>
 

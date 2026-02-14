@@ -17,6 +17,94 @@ export interface RankedCity {
   score: number // 0-1 combined score
   reason: string
   matchingInfluences: { planet: Planet; lineType: LineType; label: string }[]
+  isTopEnergyPick: boolean
+}
+
+interface ScoredCandidate {
+  city: CityWithEnergy
+  score: number
+  matchingInfluences: { planet: Planet; lineType: LineType; label: string }[]
+  normEnergy: number
+}
+
+const REGIONAL_CLUSTER_KM = 650
+const MIN_VISIBLE_ENERGY = 0.01
+
+function cityKey(city: CityWithEnergy): string {
+  return `${city.name}|${city.country}`
+}
+
+function toRad(deg: number): number {
+  return (deg * Math.PI) / 180
+}
+
+function distanceKm(a: CityWithEnergy, b: CityWithEnergy): number {
+  const R = 6371
+  const dLat = toRad(b.lat - a.lat)
+  const dLng = toRad(b.lng - a.lng)
+  const lat1 = toRad(a.lat)
+  const lat2 = toRad(b.lat)
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+function populationRankMap(cities: CityWithEnergy[]): Map<string, number> {
+  const map = new Map<string, number>()
+  for (let i = 0; i < cities.length; i++) {
+    map.set(cityKey(cities[i]), i)
+  }
+  return map
+}
+
+function pickRegionalRepresentatives(
+  candidates: ScoredCandidate[],
+  popRank: Map<string, number>,
+): ScoredCandidate[] {
+  if (candidates.length === 0) return []
+
+  const clusters: ScoredCandidate[][] = []
+  const anchors: ScoredCandidate[] = []
+
+  // Build clusters from strongest-energy cities outward so dense areas collapse early.
+  const byEnergy = [...candidates].sort((a, b) => b.normEnergy - a.normEnergy)
+  for (const candidate of byEnergy) {
+    let clusterIndex = -1
+    for (let i = 0; i < anchors.length; i++) {
+      if (distanceKm(candidate.city, anchors[i].city) <= REGIONAL_CLUSTER_KM) {
+        clusterIndex = i
+        break
+      }
+    }
+
+    if (clusterIndex === -1) {
+      anchors.push(candidate)
+      clusters.push([candidate])
+      continue
+    }
+
+    clusters[clusterIndex].push(candidate)
+  }
+
+  return clusters
+    .map((members) => {
+      const representative = members.reduce((best, curr) => {
+        const bestRank = popRank.get(cityKey(best.city)) ?? Number.MAX_SAFE_INTEGER
+        const currRank = popRank.get(cityKey(curr.city)) ?? Number.MAX_SAFE_INTEGER
+        if (currRank < bestRank) return curr
+        if (currRank === bestRank && curr.score > best.score) return curr
+        return best
+      })
+
+      const strongestClusterScore = members.reduce(
+        (max, member) => (member.score > max ? member.score : max),
+        0,
+      )
+
+      return { representative, strongestClusterScore }
+    })
+    .sort((a, b) => b.strongestClusterScore - a.strongestClusterScore)
+    .map((cluster) => cluster.representative)
 }
 
 const LINE_LABELS: Record<LineType, string> = {
@@ -206,7 +294,7 @@ export function rankCitiesByNumerology(
 
   const maxEnergy = cities.reduce((max, c) => Math.max(max, c.energyScore), 0) || 1
 
-  const scored = cities
+  const scored: ScoredCandidate[] = cities
     .filter((c) => c.activeLines.length > 0)
     .map((city) => {
       // Deduplicate lines
@@ -245,22 +333,80 @@ export function rankCitiesByNumerology(
       const normEnergy = city.energyScore / maxEnergy
       const score = normNumerology * 0.6 + normEnergy * 0.4
 
-      return { city, score, matchingInfluences }
+      return { city, score, matchingInfluences, normEnergy }
     })
-    .filter((s) => s.score > 0.1)
+    .filter((candidate) => candidate.normEnergy >= MIN_VISIBLE_ENERGY)
     .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
+
+  const popRank = populationRankMap(cities)
+  const regionalCandidates = pickRegionalRepresentatives(scored, popRank)
+  const topEnergyCount = Math.min(3, limit)
+  const topEnergy = [...regionalCandidates]
+    .sort((a, b) => b.normEnergy - a.normEnergy)
+    .slice(0, topEnergyCount)
+  const topEnergyKeys = new Set(topEnergy.map((s) => cityKey(s.city)))
+  const hasPeakEnergyCities = topEnergy.some((s) => s.normEnergy >= 0.95)
+
+  const recommended: ScoredCandidate[] = []
+  const included = new Set<string>()
+
+  // Always place top raw-energy cities first so users immediately see peak locations.
+  for (const candidate of topEnergy) {
+    if (recommended.length >= limit) break
+    const key = cityKey(candidate.city)
+    if (included.has(key)) continue
+    included.add(key)
+    recommended.push(candidate)
+  }
+
+  const primaryLimit = Math.max(0, limit - topEnergyCount)
+  let addedPrimary = 0
+  for (const candidate of regionalCandidates) {
+    if (addedPrimary >= primaryLimit) break
+    if (candidate.score <= 0.1) continue
+    // If peak-energy cities exist, suppress very low-energy cards from crowding the top.
+    if (hasPeakEnergyCities && candidate.normEnergy < 0.55) continue
+    const key = cityKey(candidate.city)
+    if (included.has(key)) continue
+    included.add(key)
+    recommended.push(candidate)
+    addedPrimary++
+  }
+
+  for (const candidate of regionalCandidates) {
+    if (recommended.length >= limit) break
+    const key = cityKey(candidate.city)
+    if (included.has(key)) continue
+    included.add(key)
+    recommended.push(candidate)
+  }
+
+  for (const candidate of scored) {
+    if (recommended.length >= limit) break
+    const key = cityKey(candidate.city)
+    if (included.has(key)) continue
+    included.add(key)
+    recommended.push(candidate)
+  }
+
+  const ordered = [...recommended].sort(
+    (a, b) => b.normEnergy - a.normEnergy || b.score - a.score,
+  )
 
   // Generate reason strings
-  return scored.map(({ city, score, matchingInfluences }) => {
+  return ordered.map(({ city, score, matchingInfluences }) => {
+    const key = cityKey(city)
+    const isTopEnergyPick = topEnergyKeys.has(key)
     let reason: string
     if (matchingInfluences.length >= 2) {
       reason = `Strong ${needs.theme.toLowerCase()} energy — ${matchingInfluences[0].label} and ${matchingInfluences[1].label} align with your year.`
     } else if (matchingInfluences.length === 1) {
       reason = `${matchingInfluences[0].label} supports your ${needs.theme.toLowerCase()} journey this year.`
+    } else if (isTopEnergyPick) {
+      reason = `Top raw-energy city on your map with strong overall alignment potential.`
     } else {
       reason = `High energy alignment complements your ${needs.theme.toLowerCase()} cycle.`
     }
-    return { city, score, reason, matchingInfluences }
+    return { city, score, reason, matchingInfluences, isTopEnergyPick }
   })
 }
