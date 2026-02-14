@@ -11,7 +11,11 @@ export interface TravelAdvisory {
   freshness: 'fresh' | 'stale'
 }
 
-const API_BASE = (import.meta.env.VITE_TRAVEL_API_BASE as string | undefined)?.replace(/\/+$/, '') ?? ''
+const DEFAULT_TRAVEL_API_BASE = 'https://soul-cartography-advisory-api.mitchellrbenjamin.workers.dev'
+const API_BASE = (
+  (import.meta.env.VITE_TRAVEL_API_BASE as string | undefined)?.replace(/\/+$/, '')
+  || DEFAULT_TRAVEL_API_BASE
+)
 const ENDPOINT_PATH = '/api/v1/travel-advisory'
 const CACHE_TTL_MS = 15 * 60 * 1000
 
