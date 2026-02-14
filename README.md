@@ -1,5 +1,13 @@
 # React + TypeScript + Vite
 
+## Travel Advisory API
+
+Australian travel advisory integration is implemented as a standalone Cloudflare Worker in `worker/`.
+
+- API details: `docs/travel-advisory-api.md`
+- Worker entrypoint: `worker/src/index.ts`
+- Frontend client: `src/lib/travelAdvisory.ts`
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
