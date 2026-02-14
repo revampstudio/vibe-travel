@@ -19,6 +19,8 @@ interface HoveredCity {
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string
 
 const STANDARD_STYLE = 'mapbox://styles/mapbox/standard'
+const MAJOR_CITY_PRIORITY_WINDOW = 1200
+const MAJOR_CITY_PRIORITY_WEIGHT = 0.2
 const ENERGY_COLOR_EXPRESSION: unknown[] = [
   'step',
   ['get', 'energyScore'],
@@ -71,11 +73,20 @@ export default function GlobeMap() {
 
   const visibleCities = useMemo(() => {
     const withLines = cities
+      .map((city, sourceRank) => ({ ...city, sourceRank }))
       .filter((c) => c.activeLines.some((l) => enabledPlanets.has(l.planet)))
       .sort((a, b) => b.energyScore - a.energyScore)
     // Scale declutter distance with zoom: 3° at globe, shrinks as you zoom in
     const minDeg = Math.max(0.1, 3 / Math.pow(2, Math.max(0, zoom - 2)))
-    return declutterCities(withLines, minDeg)
+    const prominence = (sourceRank: number) =>
+      (1 - Math.min(sourceRank, MAJOR_CITY_PRIORITY_WINDOW) / MAJOR_CITY_PRIORITY_WINDOW)
+      * MAJOR_CITY_PRIORITY_WEIGHT
+
+    return declutterCities(
+      withLines,
+      minDeg,
+      (city) => city.energyScore + prominence(city.sourceRank),
+    )
   }, [cities, enabledPlanets, zoom])
 
   const citiesGeoJSON = useMemo(() => ({
@@ -180,9 +191,15 @@ export default function GlobeMap() {
     // Layers may not exist yet during style loading
     if (!map.getLayer('city-circles')) return
 
-    const features = mapRef.current.queryRenderedFeatures(e.point, {
-      layers: ['city-circles', 'city-labels'],
+    const circleFeatures = mapRef.current.queryRenderedFeatures(e.point, {
+      layers: ['city-circles'],
     })
+    const labelFeatures = circleFeatures.length === 0 && map.getLayer('city-labels')
+      ? mapRef.current.queryRenderedFeatures(e.point, {
+        layers: ['city-labels'],
+      })
+      : []
+    const feature = circleFeatures[0] ?? labelFeatures[0]
 
     // Clear previous hover state
     if (hoveredIdRef.current !== null) {
@@ -193,9 +210,8 @@ export default function GlobeMap() {
       hoveredIdRef.current = null
     }
 
-    if (features.length > 0) {
-      const feat = features[0]
-      const props = feat.properties
+    if (feature) {
+      const props = feature.properties
       if (props) {
         const featureId = props.id as number
         hoveredIdRef.current = featureId
@@ -373,11 +389,17 @@ export default function GlobeMap() {
       onClick={(e: MapMouseEvent) => {
         if (!mapRef.current) return
         if (!mapRef.current.getMap().getLayer('city-circles')) return
-        const features = mapRef.current.queryRenderedFeatures(e.point, {
-          layers: ['city-circles', 'city-labels'],
+        const circleFeatures = mapRef.current.queryRenderedFeatures(e.point, {
+          layers: ['city-circles'],
         })
-        if (features.length > 0) {
-          const props = features[0].properties
+        const labelFeatures = circleFeatures.length === 0 && mapRef.current.getMap().getLayer('city-labels')
+          ? mapRef.current.queryRenderedFeatures(e.point, {
+            layers: ['city-labels'],
+          })
+          : []
+        const feature = circleFeatures[0] ?? labelFeatures[0]
+        if (feature) {
+          const props = feature.properties
           if (props) {
             const city = visibleCities.find(
               (c) => c.name === props.name && c.country === props.country,

@@ -75,21 +75,40 @@ export function enrichCitiesWithEnergy(
  * a cluster wins (highest energy, and since the source data is sorted
  * by population, ties naturally favor bigger cities).
  */
-export function declutterCities(
-  cities: CityWithEnergy[],
+export function declutterCities<T extends CityWithEnergy>(
+  cities: T[],
   minDegrees = 3,
-): CityWithEnergy[] {
-  const kept: CityWithEnergy[] = []
+  scoreFn: (city: T) => number = (city) => city.energyScore,
+): T[] {
+  const kept: T[] = []
+  const keptScores: number[] = []
   const minSq = minDegrees * minDegrees
   for (const city of cities) {
+    const cityScore = scoreFn(city)
     const cosLat = Math.cos((city.lat * Math.PI) / 180)
-    const tooClose = kept.some((s) => {
+    let nearbyIndex = -1
+
+    for (let i = 0; i < kept.length; i++) {
+      const s = kept[i]
       const dLat = city.lat - s.lat
       const dLng = Math.abs(city.lng - s.lng)
       const wrappedDLng = Math.min(dLng, 360 - dLng) * cosLat
-      return dLat * dLat + wrappedDLng * wrappedDLng < minSq
-    })
-    if (!tooClose) kept.push(city)
+      if (dLat * dLat + wrappedDLng * wrappedDLng < minSq) {
+        nearbyIndex = i
+        break
+      }
+    }
+
+    if (nearbyIndex === -1) {
+      kept.push(city)
+      keptScores.push(cityScore)
+      continue
+    }
+
+    if (cityScore > keptScores[nearbyIndex]) {
+      kept[nearbyIndex] = city
+      keptScores[nearbyIndex] = cityScore
+    }
   }
   return kept
 }
