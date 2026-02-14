@@ -27,7 +27,7 @@ interface ScoredCandidate {
   normEnergy: number
 }
 
-const REGIONAL_CLUSTER_KM = 650
+const REGIONAL_CLUSTER_KM = 350
 const MIN_VISIBLE_ENERGY = 0.01
 
 function cityKey(city: CityWithEnergy): string {
