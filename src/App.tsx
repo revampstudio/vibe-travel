@@ -10,6 +10,7 @@ import GlobeMap from './components/GlobeMap.tsx'
 import CityPanel from './components/CityPanel.tsx'
 import SettingsPanel from './components/SettingsPanel.tsx'
 import RecommendationSidebar from './components/RecommendationSidebar.tsx'
+import MapKey from './components/MapKey.tsx'
 
 export default function App() {
   const view = useStore((s) => s.view)
@@ -44,6 +45,9 @@ export default function App() {
         <div className="w-full h-full relative">
           <GlobeMap />
           <SettingsPanel />
+          <AnimatePresence>
+            {view === 'globe' && <MapKey key="map-key" />}
+          </AnimatePresence>
           <AnimatePresence>
             {view === 'globe' && <RecommendationSidebar key="rec-sidebar" />}
           </AnimatePresence>

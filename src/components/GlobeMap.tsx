@@ -5,6 +5,7 @@ import type { LayerSpecification } from 'mapbox-gl'
 import { useStore } from '../store/useStore.ts'
 import { declutterCities } from '../lib/geo.ts'
 import type { CityWithEnergy } from '../types/index.ts'
+import { ENERGY_TIERS, LINE_TYPE_STYLES } from '../lib/mapGuidance.ts'
 
 interface HoveredCity {
   name: string
@@ -18,6 +19,17 @@ interface HoveredCity {
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string
 
 const STANDARD_STYLE = 'mapbox://styles/mapbox/standard'
+const ENERGY_COLOR_EXPRESSION: unknown[] = [
+  'step',
+  ['get', 'energyScore'],
+  ENERGY_TIERS[0].color,
+  ENERGY_TIERS[1].min,
+  ENERGY_TIERS[1].color,
+  ENERGY_TIERS[2].min,
+  ENERGY_TIERS[2].color,
+  ENERGY_TIERS[3].min,
+  ENERGY_TIERS[3].color,
+]
 
 export default function GlobeMap() {
   const mapRef = useRef<MapRef>(null)
@@ -226,34 +238,27 @@ export default function GlobeMap() {
   }, [setHighlightedCity])
 
   const lineLayer = {
-    id: 'astro-lines',
-    type: 'line',
-    source: 'astro-lines',
-    slot: 'top',
-    paint: {
-      'line-color': ['get', 'color'],
-      'line-width': [
-        'case',
-        ['any',
-          ['==', ['get', 'planet'], 'Venus'],
-          ['==', ['get', 'planet'], 'Jupiter'],
-          ['==', ['get', 'planet'], 'Sun'],
-        ],
-        3.5,
-        2.5,
+    'line-width': [
+      'case',
+      ['any',
+        ['==', ['get', 'planet'], 'Venus'],
+        ['==', ['get', 'planet'], 'Jupiter'],
+        ['==', ['get', 'planet'], 'Sun'],
       ],
-      'line-opacity': [
-        'case',
-        ['any',
-          ['==', ['get', 'planet'], 'Venus'],
-          ['==', ['get', 'planet'], 'Jupiter'],
-          ['==', ['get', 'planet'], 'Sun'],
-        ],
-        0.9,
-        0.7,
+      3.5,
+      2.5,
+    ],
+    'line-opacity': [
+      'case',
+      ['any',
+        ['==', ['get', 'planet'], 'Venus'],
+        ['==', ['get', 'planet'], 'Jupiter'],
+        ['==', ['get', 'planet'], 'Sun'],
       ],
-    },
-  } as unknown as LayerSpecification
+      0.9,
+      0.72,
+    ],
+  } as const
 
   const cityGlowLayer = {
     id: 'city-glow',
@@ -275,7 +280,7 @@ export default function GlobeMap() {
           6, 36,
         ],
       ],
-      'circle-color': '#FF385C',
+      'circle-color': ENERGY_COLOR_EXPRESSION,
       'circle-opacity': [
         'case',
         ['boolean', ['feature-state', 'hover'], false],
@@ -306,7 +311,7 @@ export default function GlobeMap() {
           6, 11,
         ],
       ],
-      'circle-color': '#FF385C',
+      'circle-color': ENERGY_COLOR_EXPRESSION,
       'circle-opacity': 0.9,
       'circle-stroke-color': '#ffffff',
       'circle-stroke-width': [
@@ -387,7 +392,27 @@ export default function GlobeMap() {
       {mapLoaded && (
         <>
           <Source id="astro-lines" type="geojson" data={linesGeoJSON}>
-            <Layer {...lineLayer} />
+            {LINE_TYPE_STYLES.map((style) => (
+              <Layer
+                key={style.lineType}
+                {...{
+                  id: `astro-lines-${style.lineType.toLowerCase()}`,
+                  type: 'line',
+                  source: 'astro-lines',
+                  slot: 'top',
+                  filter: ['==', ['get', 'lineType'], style.lineType],
+                  layout: {
+                    'line-cap': 'round',
+                    'line-join': 'round',
+                  },
+                  paint: {
+                    'line-color': ['get', 'color'],
+                    ...lineLayer,
+                    ...(style.dasharray ? { 'line-dasharray': style.dasharray } : {}),
+                  },
+                } as unknown as LayerSpecification}
+              />
+            ))}
           </Source>
 
           <Source id="cities" type="geojson" data={citiesGeoJSON}>
