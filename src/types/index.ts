@@ -24,6 +24,20 @@ export interface SoulProfile {
   lifeStageDescription: string
   saturnReturn: boolean
   age: number
+  insights: NumerologyInsights
+}
+
+export interface NumerologyInsights {
+  lifePathMeaning: string
+  birthdayNumber: number
+  birthdayMeaning: string
+  attitudeNumber: number
+  attitudeMeaning: string
+  personalMonth: number
+  personalMonthMeaning: string
+  nextPersonalYear: number
+  nextLifeStage: string
+  nextLifeStageDescription: string
 }
 
 export interface City {

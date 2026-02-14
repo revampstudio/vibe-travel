@@ -15,6 +15,8 @@ interface NumerologyNeeds {
 export interface RankedCity {
   city: CityWithEnergy
   score: number // 0-1 combined score
+  goalAlignment: number
+  energyAlignment: number
   reason: string
   matchingInfluences: { planet: Planet; lineType: LineType; label: string }[]
   isTopEnergyPick: boolean
@@ -24,6 +26,7 @@ interface ScoredCandidate {
   city: CityWithEnergy
   score: number
   matchingInfluences: { planet: Planet; lineType: LineType; label: string }[]
+  normNumerology: number
   normEnergy: number
 }
 
@@ -323,17 +326,16 @@ export function rankCitiesByNumerology(
         }
       }
 
-      // Normalize numerology score (max possible is sum of top 2 weights)
-      const maxNumerology = needs.influences
-        .slice(0, 2)
-        .reduce((sum, i) => sum + i.weight, 0)
+      // Normalize numerology score against the strongest single yearly influence.
+      // This makes "one clear, high-quality match" read as 100% for users.
+      const maxNumerology = needs.influences[0]?.weight ?? 1
       const normNumerology = maxNumerology > 0 ? Math.min(1, numerologyScore / maxNumerology) : 0
 
       // Combined score: 60% numerology relevance, 40% energy alignment
       const normEnergy = city.energyScore / maxEnergy
       const score = normNumerology * 0.6 + normEnergy * 0.4
 
-      return { city, score, matchingInfluences, normEnergy }
+      return { city, score, matchingInfluences, normNumerology, normEnergy }
     })
     .filter((candidate) => candidate.normEnergy >= MIN_VISIBLE_ENERGY)
     .sort((a, b) => b.score - a.score)
@@ -394,7 +396,7 @@ export function rankCitiesByNumerology(
   )
 
   // Generate reason strings
-  return ordered.map(({ city, score, matchingInfluences }) => {
+  return ordered.map(({ city, score, matchingInfluences, normNumerology, normEnergy }) => {
     const key = cityKey(city)
     const isTopEnergyPick = topEnergyKeys.has(key)
     let reason: string
@@ -407,6 +409,14 @@ export function rankCitiesByNumerology(
     } else {
       reason = `High energy alignment complements your ${needs.theme.toLowerCase()} cycle.`
     }
-    return { city, score, reason, matchingInfluences, isTopEnergyPick }
+    return {
+      city,
+      score,
+      goalAlignment: normNumerology,
+      energyAlignment: normEnergy,
+      reason,
+      matchingInfluences,
+      isTopEnergyPick,
+    }
   })
 }
