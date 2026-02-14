@@ -1,0 +1,28 @@
+{
+  "destinations": [
+    {
+      "country": "Japan",
+      "advice_level": "Exercise a high degree of caution",
+      "advice_text": "Exercise a high degree of caution in Japan overall due to weather events.",
+      "updated_at": "2026-02-10T13:44:00Z",
+      "url": "https://www.smartraveller.gov.au/destinations/asia/japan",
+      "regional_advisories": [
+        { "advice_text": "Reconsider your need to travel to affected prefectures." }
+      ]
+    },
+    {
+      "country": "Myanmar",
+      "advice_level": "Do not travel",
+      "advice_text": "Do not travel to Myanmar due to civil unrest and armed conflict.",
+      "updated_at": "2026-02-12T09:00:00Z",
+      "url": "https://www.smartraveller.gov.au/destinations/asia/myanmar"
+    },
+    {
+      "country": "Democratic Republic of the Congo",
+      "advice_level": "Reconsider your need to travel",
+      "advice_text": "Reconsider your need to travel to the Democratic Republic of the Congo due to security risks.",
+      "updated_at": "2026-01-30T08:00:00Z",
+      "url": "https://www.smartraveller.gov.au/destinations/africa/democratic-republic-congo"
+    }
+  ]
+}
