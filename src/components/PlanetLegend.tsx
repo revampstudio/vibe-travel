@@ -9,7 +9,7 @@ const PLANET_META: { planet: Planet; color: string; symbol: string }[] = [
   { planet: 'Venus', color: '#E84393', symbol: '\u2640' },
   { planet: 'Mars', color: '#E53935', symbol: '\u2642' },
   { planet: 'Jupiter', color: '#6C5CE7', symbol: '\u2643' },
-  { planet: 'Saturn', color: '#546E7A', symbol: '\u2644' },
+  { planet: 'Saturn', color: '#A67C52', symbol: '\u2644' },
 ]
 
 export default function PlanetLegend() {

@@ -55,7 +55,7 @@ function useWikiSummary(cityName: string, country: string) {
 
 const PLANET_COLORS: Record<Planet, string> = {
   Sun: '#F9A825', Moon: '#78909C', Mercury: '#00ACC1', Venus: '#E84393',
-  Mars: '#E53935', Jupiter: '#6C5CE7', Saturn: '#546E7A',
+  Mars: '#E53935', Jupiter: '#6C5CE7', Saturn: '#A67C52',
   Uranus: '#42A5F5', Neptune: '#7E57C2', Pluto: '#455A64',
 }
 

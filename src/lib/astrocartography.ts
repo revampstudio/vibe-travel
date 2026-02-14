@@ -3,12 +3,12 @@ import type { Planet, LineType, AstroLine } from '../types/index.ts'
 
 const PLANET_COLORS: Record<Planet, string> = {
   Sun: '#fdcb6e',
-  Moon: '#dfe6e9',
+  Moon: '#78909C',
   Mercury: '#00cec9',
   Venus: '#e84393',
   Mars: '#d63031',
   Jupiter: '#6c5ce7',
-  Saturn: '#636e72',
+  Saturn: '#A67C52',
   Uranus: '#74b9ff',
   Neptune: '#a29bfe',
   Pluto: '#2d3436',
