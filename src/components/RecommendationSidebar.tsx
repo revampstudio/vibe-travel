@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../store/useStore.ts'
 import { getNumerologyNeeds, rankCitiesByNumerology } from '../lib/recommendations.ts'
+import { fetchTravelAdvisory } from '../lib/travelAdvisory.ts'
 import type { CityWithEnergy, Planet } from '../types/index.ts'
 
 const PLANET_COLORS: Record<Planet, string> = {
@@ -58,6 +59,8 @@ function getFocusAreas(personalYear: number): string[] {
 
 const INSIGHT_METHOD = 'These numbers are simple theme labels (not scores) based on Pythagorean numerology.'
 type SidebarPanelMode = 'locations' | 'about'
+type AdvisoryLevel = 1 | 2 | 3 | 4
+type AdvisoryLevelMap = Record<string, AdvisoryLevel | null>
 
 export default function RecommendationSidebar() {
   const profile = useStore((s) => s.profile)
@@ -68,6 +71,7 @@ export default function RecommendationSidebar() {
   const setHighlightedCity = useStore((s) => s.setHighlightedCity)
   const [expanded, setExpanded] = useState(false)
   const [panelMode, setPanelMode] = useState<SidebarPanelMode>('locations')
+  const [advisoryLevelsByCountry, setAdvisoryLevelsByCountry] = useState<AdvisoryLevelMap>({})
   const cityKey = (city: CityWithEnergy) => `${city.name}|${city.country}`
 
   const needs = useMemo(
@@ -143,6 +147,48 @@ export default function RecommendationSidebar() {
     () => new Set(overallBest.map((item) => cityKey(item.city))),
     [overallBest],
   )
+  const visibleCountries = useMemo(
+    () => Array.from(new Set(
+      [...yearlyBest, ...overallBest].map((item) => item.city.country),
+    )),
+    [yearlyBest, overallBest],
+  )
+
+  useEffect(() => {
+    const missingCountries = visibleCountries.filter(
+      (country) => !Object.prototype.hasOwnProperty.call(advisoryLevelsByCountry, country),
+    )
+    if (missingCountries.length === 0) return
+
+    let cancelled = false
+
+    Promise.all(
+      missingCountries.map(async (country) => {
+        const advisory = await fetchTravelAdvisory(country)
+        return {
+          country,
+          level: advisory?.adviceLevel ?? null,
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return
+
+      setAdvisoryLevelsByCountry((current) => {
+        let changed = false
+        const next: AdvisoryLevelMap = { ...current }
+        for (const entry of entries) {
+          if (Object.prototype.hasOwnProperty.call(next, entry.country)) continue
+          next[entry.country] = entry.level
+          changed = true
+        }
+        return changed ? next : current
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [visibleCountries, advisoryLevelsByCountry])
 
   if (!profile || !needs || ranked.length === 0) return null
 
@@ -357,6 +403,7 @@ export default function RecommendationSidebar() {
                     const yearlyPercent = Math.round(goalAlignment * 100)
                     const energyPercent = Math.round(energyAlignment * 100)
                     const isDualMatch = overallKeys.has(key)
+                    const advisoryLevel = advisoryLevelsByCountry[city.country] ?? null
 
                     return (
                       <button
@@ -387,6 +434,11 @@ export default function RecommendationSidebar() {
                           {isDualMatch && (
                             <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
                               Also high energy
+                            </span>
+                          )}
+                          {advisoryLevel !== null && advisoryLevel > 1 && (
+                            <span className="text-[10px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+                              Travel advisory in place
                             </span>
                           )}
                         </div>
@@ -439,6 +491,7 @@ export default function RecommendationSidebar() {
                     const isHighlighted = highlightedCity === key
                     const energyPercent = Math.round(energyAlignment * 100)
                     const yearlyPercent = Math.round(goalAlignment * 100)
+                    const advisoryLevel = advisoryLevelsByCountry[city.country] ?? null
 
                     return (
                       <button
@@ -474,6 +527,11 @@ export default function RecommendationSidebar() {
                           {yearlyPercent > 0 && (
                             <span className="text-[10px] font-semibold text-accent bg-accent/10 px-2 py-0.5 rounded-full">
                               Yearly match {yearlyPercent}%
+                            </span>
+                          )}
+                          {advisoryLevel !== null && advisoryLevel > 1 && (
+                            <span className="text-[10px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+                              Travel advisory in place
                             </span>
                           )}
                         </div>
