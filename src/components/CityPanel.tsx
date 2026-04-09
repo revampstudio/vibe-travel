@@ -1,25 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useStore } from '../store/useStore.ts'
 import { getInterpretation } from '../lib/interpretations.ts'
 import { fetchTravelAdvisory, type TravelAdvisoryLookup } from '../lib/travelAdvisory.ts'
 import { fetchCityWikiSummary } from '../lib/wiki.ts'
 import type { Planet, LineType } from '../types/index.ts'
-
-const FALLBACK_CITY_IMAGES = [
-  'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1400&q=70',
-  'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1400&q=70',
-  'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1400&q=70',
-  'https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=1400&q=70',
-  'https://images.unsplash.com/photo-1521292270410-a8c4d716d518?auto=format&fit=crop&w=1400&q=70',
-  'https://images.unsplash.com/photo-1483683804023-6ccdb62f86ef?auto=format&fit=crop&w=1400&q=70',
-]
-
-function deterministicImageForCity(cityName: string, country: string): string {
-  const seed = `${cityName}|${country}`
-  const hash = seed.split('').reduce((acc, char, index) => acc + (char.charCodeAt(0) * (index + 11)), 0)
-  return FALLBACK_CITY_IMAGES[hash % FALLBACK_CITY_IMAGES.length]
-}
 
 function useWikiSummary(cityName: string, country: string, latitude?: number, longitude?: number) {
   const [summariesByLocation, setSummariesByLocation] = useState<Record<string, string | null>>({})
@@ -188,30 +173,6 @@ export default function CityPanel() {
     })
   }, [selectedCity?.activeLines])
 
-  const heroImageCandidates = useMemo(() => {
-    const primary = deterministicImageForCity(cityName || 'City', countryName || 'Country')
-    return [primary, ...FALLBACK_CITY_IMAGES.filter((url) => url !== primary)]
-  }, [cityName, countryName])
-
-  const heroImageKey = `${cityName}|${countryName}`
-  const [heroImageState, setHeroImageState] = useState<{ key: string, index: number }>({
-    key: '',
-    index: 0,
-  })
-  const heroImageIndex = heroImageState.key === heroImageKey ? heroImageState.index : 0
-
-  const heroImage = heroImageCandidates[heroImageIndex] ?? null
-
-  const handleHeroImageError = useCallback(() => {
-    setHeroImageState((current) => {
-      const currentIndex = current.key === heroImageKey ? current.index : 0
-      if (currentIndex + 1 >= heroImageCandidates.length) {
-        return { key: heroImageKey, index: currentIndex }
-      }
-      return { key: heroImageKey, index: currentIndex + 1 }
-    })
-  }, [heroImageCandidates.length, heroImageKey])
-
   const quickFacts = useMemo(
     () => [
       {
@@ -232,11 +193,6 @@ export default function CityPanel() {
     [countryName, selectedCity, uniqueLines.length, maxEnergy],
   )
 
-  const heroImageAlt = useMemo(
-    () => `${cityName || 'City'} skyline`,
-    [cityName],
-  )
-
   if (!selectedCity) return null
 
   const handleClose = () => {
@@ -254,18 +210,7 @@ export default function CityPanel() {
     >
       <div className="floating-panel flex h-[82vh] flex-col overflow-hidden md:h-full md:rounded-none md:rounded-l-[2rem]">
         <div className="relative border-b border-border/70 bg-surface">
-          <div className="absolute inset-0">
-            {heroImage && (
-              <img
-                src={heroImage}
-                alt={heroImageAlt}
-                className="h-full w-full object-cover"
-                loading="lazy"
-                onError={handleHeroImageError}
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/82 to-white/28" />
-          </div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(227,28,75,0.12),transparent_34%),radial-gradient(circle_at_top_right,rgba(15,23,42,0.08),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,255,255,0.88))]" />
 
           <div className="relative z-10 px-5 pb-6 pt-5 md:px-7 md:pb-7 md:pt-6">
             <div className="mb-4 flex items-center justify-between gap-3">
