@@ -1,50 +1,59 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { useStore } from '../store/useStore.ts'
 import { getInterpretation } from '../lib/interpretations.ts'
-import { fetchTravelAdvisory, type TravelAdvisory } from '../lib/travelAdvisory.ts'
+import { fetchTravelAdvisory, type TravelAdvisoryLookup } from '../lib/travelAdvisory.ts'
+import { fetchCityWikiSummary } from '../lib/wiki.ts'
 import type { Planet, LineType } from '../types/index.ts'
 
-const wikiCache = new Map<string, string>()
+const FALLBACK_CITY_IMAGES = [
+  'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1400&q=70',
+  'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1400&q=70',
+  'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1400&q=70',
+  'https://images.unsplash.com/photo-1505761671935-60b3a7427bad?auto=format&fit=crop&w=1400&q=70',
+  'https://images.unsplash.com/photo-1521292270410-a8c4d716d518?auto=format&fit=crop&w=1400&q=70',
+  'https://images.unsplash.com/photo-1483683804023-6ccdb62f86ef?auto=format&fit=crop&w=1400&q=70',
+]
 
-function useWikiSummary(cityName: string, country: string) {
-  const [, setCacheVersion] = useState(0)
+function deterministicImageForCity(cityName: string, country: string): string {
+  const seed = `${cityName}|${country}`
+  const hash = seed.split('').reduce((acc, char, index) => acc + (char.charCodeAt(0) * (index + 11)), 0)
+  return FALLBACK_CITY_IMAGES[hash % FALLBACK_CITY_IMAGES.length]
+}
+
+function useWikiSummary(cityName: string, country: string, latitude?: number, longitude?: number) {
+  const [summariesByLocation, setSummariesByLocation] = useState<Record<string, string | null>>({})
+  const cacheKey = `${cityName.trim().toLowerCase()}|${country.trim().toLowerCase()}`
 
   useEffect(() => {
-    if (!cityName) {
-      return
-    }
-
-    if (wikiCache.has(cityName)) {
-      return
-    }
+    if (!cityName || !country) return
+    if (Object.prototype.hasOwnProperty.call(summariesByLocation, cacheKey)) return
 
     const controller = new AbortController()
-    const encoded = encodeURIComponent(cityName.replace(/ /g, '_'))
 
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encoded}`, {
-      signal: controller.signal,
-    })
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => {
-        const text = data.extract ?? ''
-        wikiCache.set(cityName, text)
-        if (!controller.signal.aborted) {
-          setCacheVersion((value) => value + 1)
-        }
+    fetchCityWikiSummary(cityName, country, latitude, longitude, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return
+        setSummariesByLocation((current) => {
+          if (Object.prototype.hasOwnProperty.call(current, cacheKey)) return current
+          return { ...current, [cacheKey]: result?.summary ?? null }
+        })
       })
       .catch(() => {
-        if (!controller.signal.aborted) {
-          wikiCache.set(cityName, '')
-          setCacheVersion((value) => value + 1)
-        }
+        if (controller.signal.aborted) return
+        setSummariesByLocation((current) => {
+          if (Object.prototype.hasOwnProperty.call(current, cacheKey)) return current
+          return { ...current, [cacheKey]: null }
+        })
       })
 
     return () => controller.abort()
-  }, [cityName, country])
+  }, [cacheKey, cityName, country, latitude, longitude, summariesByLocation])
 
-  const summary = wikiCache.get(cityName) ?? null
-  const loading = Boolean(cityName) && !wikiCache.has(cityName)
+  const summary = Object.prototype.hasOwnProperty.call(summariesByLocation, cacheKey)
+    ? summariesByLocation[cacheKey]
+    : null
+  const loading = Boolean(cityName && country) && !Object.prototype.hasOwnProperty.call(summariesByLocation, cacheKey)
 
   return { summary, loading }
 }
@@ -61,34 +70,47 @@ const LINE_LABELS: Record<LineType, string> = {
 
 const ADVISORY_STYLES: Record<1 | 2 | 3 | 4, { panel: string, badge: string }> = {
   1: {
-    panel: 'border-emerald-200 bg-emerald-50/60',
+    panel: 'border-emerald-200 bg-emerald-50/80',
     badge: 'bg-emerald-100 text-emerald-800',
   },
   2: {
-    panel: 'border-amber-200 bg-amber-50/70',
+    panel: 'border-amber-200 bg-amber-50/80',
     badge: 'bg-amber-100 text-amber-800',
   },
   3: {
-    panel: 'border-orange-200 bg-orange-50/70',
+    panel: 'border-orange-200 bg-orange-50/80',
     badge: 'bg-orange-100 text-orange-800',
   },
   4: {
-    panel: 'border-red-200 bg-red-50/70',
+    panel: 'border-red-200 bg-red-50/80',
     badge: 'bg-red-100 text-red-800',
   },
 }
 
+const SUGGESTED_EXPERIENCES = [
+  {
+    title: 'Architectural Morning Walk',
+    desc: 'Join a local design-led route through signature streets and neighborhoods.',
+    tag: 'Culture',
+  },
+  {
+    title: 'Sunrise Movement Session',
+    desc: 'Ground your day with breathwork and light movement at a scenic outdoor spot.',
+    tag: 'Wellness',
+  },
+  {
+    title: 'Regional Tasting Evening',
+    desc: 'Discover flavors that reflect the city’s identity with a chef-led tasting.',
+    tag: 'Food',
+  },
+] as const
+
 function useTravelAdvisory(country: string) {
-  const [advisoriesByCountry, setAdvisoriesByCountry] = useState<Record<string, TravelAdvisory | null>>({})
+  const [advisoriesByCountry, setAdvisoriesByCountry] = useState<Record<string, TravelAdvisoryLookup | null>>({})
 
   useEffect(() => {
-    if (!country) {
-      return
-    }
-
-    if (Object.prototype.hasOwnProperty.call(advisoriesByCountry, country)) {
-      return
-    }
+    if (!country) return
+    if (Object.prototype.hasOwnProperty.call(advisoriesByCountry, country)) return
 
     const controller = new AbortController()
     fetchTravelAdvisory(country, controller.signal)
@@ -104,10 +126,11 @@ function useTravelAdvisory(country: string) {
   }, [country, advisoriesByCountry])
 
   const hasLoadedCountry = Object.prototype.hasOwnProperty.call(advisoriesByCountry, country)
-  const advisory = hasLoadedCountry ? advisoriesByCountry[country] : null
+  const advisoryState = hasLoadedCountry ? advisoriesByCountry[country] : null
+  const advisory = advisoryState?.status === 'ok' ? advisoryState.advisory : null
   const loading = Boolean(country) && !hasLoadedCountry
 
-  return { advisory, loading }
+  return { advisory, advisoryState, loading }
 }
 
 function formatAdvisoryDate(value: string): string {
@@ -121,33 +144,100 @@ function formatAdvisoryDate(value: string): string {
   }).format(new Date(timestamp))
 }
 
+function shortCountry(country: string): string {
+  const parts = country.split(',')
+  return parts[0]?.trim() ?? country
+}
+
 export default function CityPanel() {
   const selectedCity = useStore((s) => s.selectedCity)
   const setSelectedCity = useStore((s) => s.setSelectedCity)
   const setView = useStore((s) => s.setView)
   const cities = useStore((s) => s.cities)
 
+  const cityName = selectedCity?.name ?? ''
+  const countryName = selectedCity?.country ?? ''
+
   const { summary: wikiSummary, loading: wikiLoading } = useWikiSummary(
-    selectedCity?.name ?? '',
-    selectedCity?.country ?? '',
+    cityName,
+    countryName,
+    selectedCity?.lat,
+    selectedCity?.lng,
   )
-  const { advisory, loading: advisoryLoading } = useTravelAdvisory(
-    selectedCity?.country ?? '',
+  const { advisory, advisoryState, loading: advisoryLoading } = useTravelAdvisory(
+    countryName,
+  )
+
+  const maxEnergy = useMemo(
+    () => cities.reduce((max, city) => Math.max(max, city.energyScore), 0),
+    [cities],
+  )
+
+  const energyPercent = useMemo(() => {
+    if (!selectedCity || maxEnergy <= 0) return 0
+    return Math.round((selectedCity.energyScore / maxEnergy) * 100)
+  }, [selectedCity, maxEnergy])
+
+  const uniqueLines = useMemo(() => {
+    const seen = new Set<string>()
+    return (selectedCity?.activeLines ?? []).filter((line) => {
+      const key = `${line.planet}-${line.lineType}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [selectedCity?.activeLines])
+
+  const heroImageCandidates = useMemo(() => {
+    const primary = deterministicImageForCity(cityName || 'City', countryName || 'Country')
+    return [primary, ...FALLBACK_CITY_IMAGES.filter((url) => url !== primary)]
+  }, [cityName, countryName])
+
+  const heroImageKey = `${cityName}|${countryName}`
+  const [heroImageState, setHeroImageState] = useState<{ key: string, index: number }>({
+    key: '',
+    index: 0,
+  })
+  const heroImageIndex = heroImageState.key === heroImageKey ? heroImageState.index : 0
+
+  const heroImage = heroImageCandidates[heroImageIndex] ?? null
+
+  const handleHeroImageError = useCallback(() => {
+    setHeroImageState((current) => {
+      const currentIndex = current.key === heroImageKey ? current.index : 0
+      if (currentIndex + 1 >= heroImageCandidates.length) {
+        return { key: heroImageKey, index: currentIndex }
+      }
+      return { key: heroImageKey, index: currentIndex + 1 }
+    })
+  }, [heroImageCandidates.length, heroImageKey])
+
+  const quickFacts = useMemo(
+    () => [
+      {
+        label: 'Country',
+        value: shortCountry(countryName || '—'),
+      },
+      {
+        label: 'Energy score',
+        value: selectedCity
+          ? `${selectedCity.energyScore.toFixed(1)} / ${Math.max(maxEnergy, 0.1).toFixed(1)}`
+          : '—',
+      },
+      {
+        label: 'Active influences',
+        value: `${uniqueLines.length}`,
+      },
+    ],
+    [countryName, selectedCity, uniqueLines.length, maxEnergy],
+  )
+
+  const heroImageAlt = useMemo(
+    () => `${cityName || 'City'} skyline`,
+    [cityName],
   )
 
   if (!selectedCity) return null
-
-  const maxEnergy = cities.reduce((max, c) => Math.max(max, c.energyScore), 0)
-  const relativeScore = maxEnergy > 0 ? selectedCity.energyScore / maxEnergy : 0
-  const energyPercent = Math.round(relativeScore * 100)
-
-  const seen = new Set<string>()
-  const uniqueLines = selectedCity.activeLines.filter((line) => {
-    const key = `${line.planet}-${line.lineType}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
 
   const handleClose = () => {
     setSelectedCity(null)
@@ -156,265 +246,205 @@ export default function CityPanel() {
 
   return (
     <motion.div
-      className="absolute top-0 right-0 bottom-0 z-30 w-full max-w-md"
+      className="absolute inset-x-0 bottom-0 z-[30] md:inset-y-0 md:left-auto md:w-full md:max-w-[34rem]"
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
-      transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+      transition={{ type: 'spring', damping: 32, stiffness: 280 }}
     >
-      <div className="h-full bg-white border-l border-border overflow-y-auto shadow-2xl">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-border z-10">
-          <div className="flex items-center justify-between px-6 py-4">
-            <button
-              onClick={handleClose}
-              aria-label="Back to globe"
-              className="flex items-center gap-2 text-text hover:text-muted transition-colors
-                         cursor-pointer min-h-[44px]"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-              <span className="text-sm font-medium">Back</span>
-            </button>
-            <span className="text-xs font-semibold text-accent bg-accent/10 px-3 py-1.5 rounded-full">
-              {uniqueLines.length} {uniqueLines.length === 1 ? 'influence' : 'influences'}
-            </span>
-          </div>
-        </div>
-
-        {/* City name hero */}
-        <div className="px-6 pt-6 pb-8 border-b border-border">
-          <h2 className="font-serif text-4xl font-semibold text-text tracking-tight text-balance">
-            {selectedCity.name}
-          </h2>
-          <p className="text-lg text-muted mt-2">{selectedCity.country}</p>
-
-          {/* Energy score */}
-          <div className="mt-5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted">Energy Alignment</span>
-              <span className="text-xs font-semibold text-text">{energyPercent}%</span>
-            </div>
-            <div className="h-1.5 bg-surface rounded-full overflow-hidden">
-              <motion.div
-                className="h-full rounded-full bg-accent"
-                initial={{ width: 0 }}
-                animate={{ width: `${energyPercent}%` }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
+      <div className="floating-panel flex h-[82vh] flex-col overflow-hidden md:h-full md:rounded-none md:rounded-l-[2rem]">
+        <div className="relative border-b border-border/70 bg-surface">
+          <div className="absolute inset-0">
+            {heroImage && (
+              <img
+                src={heroImage}
+                alt={heroImageAlt}
+                className="h-full w-full object-cover"
+                loading="lazy"
+                onError={handleHeroImageError}
               />
-            </div>
-          </div>
-        </div>
-
-        {/* Travel advisory */}
-        {(advisoryLoading || advisory) && (
-          <section className="px-6 py-8 border-b border-border">
-            <h3 className="text-lg font-semibold text-text mb-4">
-              Australian Government Travel Advisory
-            </h3>
-
-            {advisoryLoading ? (
-              <div className="space-y-2.5">
-                <div className="h-3 bg-surface rounded-full w-full animate-pulse" />
-                <div className="h-3 bg-surface rounded-full w-5/6 animate-pulse" />
-                <div className="h-3 bg-surface rounded-full w-2/3 animate-pulse" />
-              </div>
-            ) : advisory ? (
-              <div className={`rounded-2xl border p-5 ${ADVISORY_STYLES[advisory.adviceLevel].panel}`}>
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <p className="text-sm font-semibold text-text">
-                    {advisory.matchedCountry}
-                  </p>
-                  <span
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-full ${ADVISORY_STYLES[advisory.adviceLevel].badge}`}
-                  >
-                    Level {advisory.adviceLevel}
-                  </span>
-                </div>
-
-                <p className="text-sm font-medium text-text mb-2">{advisory.adviceLabel}</p>
-                <p className="text-sm text-muted leading-relaxed text-pretty">
-                  {advisory.summary}
-                </p>
-
-                {advisory.regionalAdvisories.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted mb-1.5">
-                      Regional Notes
-                    </p>
-                    <ul className="list-disc pl-5 space-y-1">
-                      {advisory.regionalAdvisories.slice(0, 3).map((note) => (
-                        <li key={note} className="text-sm text-muted leading-relaxed">{note}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="mt-4 flex items-center justify-between gap-3">
-                  <p className="text-xs text-muted">
-                    Updated {formatAdvisoryDate(advisory.updatedAt)}
-                    {advisory.freshness === 'stale' && ' (cached)'}
-                  </p>
-                  <a
-                    href={advisory.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
-                  >
-                    Official source
-                  </a>
-                </div>
-              </div>
-            ) : null}
-          </section>
-        )}
-
-        {/* About this city */}
-        {(wikiLoading || wikiSummary) && (
-          <section className="px-6 py-8 border-b border-border">
-            <h3 className="text-lg font-semibold text-text mb-4">
-              About {selectedCity.name}
-            </h3>
-            {wikiLoading ? (
-              <div className="space-y-2.5">
-                <div className="h-3 bg-surface rounded-full w-full animate-pulse" />
-                <div className="h-3 bg-surface rounded-full w-5/6 animate-pulse" />
-                <div className="h-3 bg-surface rounded-full w-4/6 animate-pulse" />
-              </div>
-            ) : (
-              <p className="text-sm text-muted leading-relaxed text-pretty">
-                {wikiSummary}
-              </p>
             )}
-          </section>
-        )}
+            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/82 to-white/28" />
+          </div>
 
-        {/* Planetary Influences */}
-        <section className="px-6 py-8 border-b border-border">
-          <h3 className="text-lg font-semibold text-text mb-6">
-            Planetary Influences
-          </h3>
+          <div className="relative z-10 px-5 pb-6 pt-5 md:px-7 md:pb-7 md:pt-6">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <button
+                onClick={handleClose}
+                aria-label="Back to globe"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-border/80 bg-white/92 px-3.5 py-2 text-sm font-medium text-text transition hover:border-border-strong hover:bg-white"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to map
+              </button>
+              <span className="rounded-full border border-accent/20 bg-accent-light px-3 py-1.5 text-xs font-semibold text-accent-strong">
+                {uniqueLines.length} {uniqueLines.length === 1 ? 'influence' : 'influences'}
+              </span>
+            </div>
 
-          {uniqueLines.length > 0 ? (
-            <div className="space-y-5">
-              {uniqueLines.map((line) => (
-                <div
-                  key={`${line.planet}-${line.lineType}`}
-                  className="rounded-2xl border border-border bg-surface p-5"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div
-                      className="size-10 rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: `${PLANET_COLORS[line.planet]}18` }}
-                    >
-                      <div
-                        className="size-4 rounded-full"
-                        style={{ backgroundColor: PLANET_COLORS[line.planet] }}
-                      />
-                    </div>
-                    <div>
-                      <span className="text-base font-semibold text-text">{line.planet}</span>
-                      <span className="text-sm text-muted mx-1.5">on</span>
-                      <span className="text-sm font-semibold" style={{ color: PLANET_COLORS[line.planet] }}>
-                        {LINE_LABELS[line.lineType]}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted leading-relaxed text-pretty">
-                    {getInterpretation(line.planet, line.lineType)}
-                  </p>
+            <h2 className="font-serif text-[2.2rem] font-semibold leading-tight text-text md:text-[2.55rem]">
+              {selectedCity.name}
+            </h2>
+            <p className="mt-1.5 text-base text-muted md:text-lg">{selectedCity.country}</p>
+
+            <div className="mt-5 grid grid-cols-3 gap-2.5 md:gap-3">
+              {quickFacts.map((fact) => (
+                <div key={fact.label} className="rounded-xl border border-white/50 bg-white/82 px-3 py-2.5 backdrop-blur-sm">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">{fact.label}</p>
+                  <p className="mt-1 text-sm font-semibold text-text md:text-[15px]">{fact.value}</p>
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-muted leading-relaxed text-pretty">
-              No strong planetary lines pass directly through this city,
-              but its energy may still resonate with your chart through proximity.
-            </p>
-          )}
-        </section>
 
-        {/* Recommended Activities */}
-        <section className="px-6 py-8 border-b border-border">
-          <h3 className="text-lg font-semibold text-text mb-6">
-            Recommended Activities
-          </h3>
-          <div className="space-y-4">
-            {[
-              { title: 'Guided Walking Tour', desc: 'Explore the historic city center with a local guide', tag: 'Culture' },
-              { title: 'Sunrise Yoga Session', desc: 'Start your day aligned at a scenic outdoor spot', tag: 'Wellness' },
-              { title: 'Local Cooking Class', desc: 'Learn to prepare traditional regional dishes', tag: 'Food' },
-              { title: 'Sound Healing Circle', desc: 'Group meditation with singing bowls and breathwork', tag: 'Spiritual' },
-            ].map((a) => (
-              <div key={a.title} className="rounded-2xl border border-border bg-surface p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-base font-semibold text-text">{a.title}</span>
-                  <span className="text-xs font-medium text-accent bg-accent/10 px-2.5 py-1 rounded-full">{a.tag}</span>
-                </div>
-                <p className="text-sm text-muted leading-relaxed">{a.desc}</p>
-                <p className="text-xs text-muted/50 mt-2 italic">Coming soon</p>
+            <div className="mt-5 rounded-xl border border-border/80 bg-white/90 p-3.5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted">Alignment</span>
+                <span className="text-sm font-semibold text-text">{energyPercent}%</span>
               </div>
-            ))}
+              <div className="h-2 overflow-hidden rounded-full bg-surface-soft">
+                <motion.div
+                  className="h-full rounded-full bg-accent"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${energyPercent}%` }}
+                  transition={{ duration: 0.75, ease: 'easeOut' }}
+                />
+              </div>
+            </div>
           </div>
-        </section>
+        </div>
 
-        {/* Hotels */}
-        <section className="px-6 py-8">
-          <h3 className="text-lg font-semibold text-text mb-6">
-            Hotels
-          </h3>
-          <div className="space-y-4">
-            {[
-              { name: 'Grand Plaza Hotel', stars: 5, price: '$$$', note: 'Luxury stay in the heart of the city' },
-              { name: 'The Artisan Boutique', stars: 4, price: '$$', note: 'Charming boutique hotel near old town' },
-              { name: 'Serenity Inn', stars: 3, price: '$', note: 'Cozy and affordable with great reviews' },
-            ].map((h) => (
-              <div key={h.name} className="rounded-2xl border border-border bg-surface p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-base font-semibold text-text">{h.name}</span>
-                  <span className="text-xs font-medium text-muted">{h.price}</span>
-                </div>
-                <div className="flex items-center gap-1 mb-2">
-                  {Array.from({ length: h.stars }).map((_, i) => (
-                    <span key={i} className="text-amber-400 text-sm">★</span>
+        <div className="flex-1 overflow-y-auto px-5 pb-8 pt-6 md:px-7 md:pb-10 md:pt-7">
+          <div className="space-y-6">
+            {(advisoryLoading || advisoryState?.status === 'ok' || advisoryState?.status === 'unavailable') && (
+              <section>
+                <h3 className="mb-3 text-[1.05rem] font-semibold text-text">
+                  Australian Government Travel Advisory
+                </h3>
+
+                {advisoryLoading ? (
+                  <div className="space-y-2.5">
+                    <div className="h-3.5 w-full animate-pulse rounded-full bg-surface-soft" />
+                    <div className="h-3.5 w-5/6 animate-pulse rounded-full bg-surface-soft" />
+                    <div className="h-3.5 w-2/3 animate-pulse rounded-full bg-surface-soft" />
+                  </div>
+                ) : advisory ? (
+                  <div className={`rounded-2xl border px-4 py-4 md:px-5 md:py-5 ${ADVISORY_STYLES[advisory.adviceLevel].panel}`}>
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <p className="text-sm font-semibold text-text">{advisory.matchedCountry}</p>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ADVISORY_STYLES[advisory.adviceLevel].badge}`}>
+                        Level {advisory.adviceLevel}
+                      </span>
+                    </div>
+
+                    <p className="mb-2 text-[15px] font-semibold text-text">{advisory.adviceLabel}</p>
+                    <p className="text-sm leading-relaxed text-muted">{advisory.summary}</p>
+
+                    {advisory.regionalAdvisories.length > 0 && (
+                      <div className="mt-3.5">
+                        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+                          Regional notes
+                        </p>
+                        <ul className="list-disc space-y-1 pl-5">
+                          {advisory.regionalAdvisories.slice(0, 3).map((note) => (
+                            <li key={note} className="text-sm leading-relaxed text-muted">{note}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted">
+                        Updated {formatAdvisoryDate(advisory.updatedAt)}
+                        {advisory.freshness === 'stale' && ' (cached)'}
+                      </p>
+                      <a
+                        href={advisory.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-semibold text-accent transition hover:text-accent-strong"
+                      >
+                        Official source
+                      </a>
+                    </div>
+                  </div>
+                ) : advisoryState?.status === 'unavailable' ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4 md:px-5 md:py-5">
+                    <p className="mb-2 text-[15px] font-semibold text-text">Travel safety information is unavailable</p>
+                    <p className="text-sm leading-relaxed text-muted">
+                      The app could not reach the Australian Government advisory feed for this destination just now.
+                    </p>
+                  </div>
+                ) : null}
+              </section>
+            )}
+
+            <section>
+              <h3 className="mb-3 text-[1.05rem] font-semibold text-text">A local vibe preview</h3>
+              <p className="text-sm leading-relaxed text-muted">
+                {wikiLoading
+                  ? 'Loading city context...'
+                  : (wikiSummary || `${selectedCity.name} offers a compelling blend of culture, pace, and atmosphere — ideal for an intentional stay aligned with your current cycle.`)}
+              </p>
+            </section>
+
+            <section>
+              <h3 className="mb-4 text-[1.05rem] font-semibold text-text">Planetary influences</h3>
+              {uniqueLines.length > 0 ? (
+                <div className="space-y-3.5">
+                  {uniqueLines.map((line) => (
+                    <article
+                      key={`${line.planet}-${line.lineType}`}
+                      className="rounded-2xl border border-border/90 bg-surface px-4 py-4 md:px-5"
+                    >
+                      <div className="mb-2.5 flex items-center gap-3">
+                        <div
+                          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full"
+                          style={{ backgroundColor: `${PLANET_COLORS[line.planet]}18` }}
+                        >
+                          <div
+                            className="h-4 w-4 rounded-full"
+                            style={{ backgroundColor: PLANET_COLORS[line.planet] }}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-[15px] font-semibold text-text">
+                            {line.planet}{' '}
+                            <span className="font-medium text-muted">on</span>{' '}
+                            <span style={{ color: PLANET_COLORS[line.planet] }}>{LINE_LABELS[line.lineType]}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-sm leading-relaxed text-muted">
+                        {getInterpretation(line.planet, line.lineType)}
+                      </p>
+                    </article>
                   ))}
                 </div>
-                <p className="text-sm text-muted leading-relaxed">{h.note}</p>
-                <p className="text-xs text-muted/50 mt-2 italic">Coming soon</p>
-              </div>
-            ))}
-          </div>
-        </section>
+              ) : (
+                <p className="text-sm leading-relaxed text-muted">
+                  No strong planetary lines pass directly through this city, but nearby influences may still resonate with your chart.
+                </p>
+              )}
+            </section>
 
-        {/* Flights */}
-        <section className="px-6 py-8">
-          <h3 className="text-lg font-semibold text-text mb-6">
-            Flights
-          </h3>
-          <div className="space-y-4">
-            {[
-              { airline: 'SkyWay Airlines', route: 'Direct', duration: '3h 20m', price: '$349' },
-              { airline: 'EuroJet', route: '1 stop', duration: '5h 45m', price: '$215' },
-              { airline: 'Global Air', route: 'Direct', duration: '3h 05m', price: '$412' },
-            ].map((f) => (
-              <div key={f.airline} className="rounded-2xl border border-border bg-surface p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-base font-semibold text-text">{f.airline}</span>
-                  <span className="text-sm font-semibold text-text">{f.price}</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-muted">
-                  <span>{f.route}</span>
-                  <span>·</span>
-                  <span>{f.duration}</span>
-                </div>
-                <p className="text-xs text-muted/50 mt-2 italic">Coming soon</p>
+            <section>
+              <h3 className="mb-4 text-[1.05rem] font-semibold text-text">Suggested experiences</h3>
+              <div className="space-y-3.5">
+                {SUGGESTED_EXPERIENCES.map((item) => (
+                  <div key={item.title} className="rounded-2xl border border-border/90 bg-surface px-4 py-4 md:px-5">
+                    <div className="mb-1.5 flex items-center justify-between gap-3">
+                      <p className="text-[15px] font-semibold text-text">{item.title}</p>
+                      <span className="rounded-full bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent-strong">{item.tag}</span>
+                    </div>
+                    <p className="text-sm leading-relaxed text-muted">{item.desc}</p>
+                  </div>
+                ))}
               </div>
-            ))}
+            </section>
           </div>
-        </section>
-
-        <div className="h-6" />
+        </div>
       </div>
     </motion.div>
   )

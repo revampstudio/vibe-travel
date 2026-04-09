@@ -1,5 +1,15 @@
 # React + TypeScript + Vite
 
+## Mapbox token setup (required for globe)
+
+Create a local env file and add your Mapbox public token:
+
+```bash
+VITE_MAPBOX_TOKEN=pk.your_actual_mapbox_public_token
+```
+
+If `VITE_MAPBOX_TOKEN` is missing or left as a placeholder (for example `your_mapbox_token_here`), the app now shows a graceful in-app fallback instead of attempting to mount Mapbox.
+
 ## Travel Advisory API
 
 Australian travel advisory integration is implemented as a standalone Cloudflare Worker in `worker/`.
@@ -7,6 +17,7 @@ Australian travel advisory integration is implemented as a standalone Cloudflare
 - API details: `docs/travel-advisory-api.md`
 - Worker entrypoint: `worker/src/index.ts`
 - Frontend client: `src/lib/travelAdvisory.ts`
+- Local web development now defaults to `http://127.0.0.1:8787` for advisories when the app is opened on `localhost`.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

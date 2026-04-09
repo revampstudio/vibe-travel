@@ -11,27 +11,46 @@ export interface TravelAdvisory {
   freshness: 'fresh' | 'stale'
 }
 
-const DEFAULT_TRAVEL_API_BASE = 'https://soul-cartography-advisory-api.mitchellrbenjamin.workers.dev'
-const API_BASE = (
-  (import.meta.env.VITE_TRAVEL_API_BASE as string | undefined)?.replace(/\/+$/, '')
-  || DEFAULT_TRAVEL_API_BASE
-)
-const ENDPOINT_PATH = '/api/v1/travel-advisory'
-const CACHE_TTL_MS = 15 * 60 * 1000
+export type TravelAdvisoryLookup =
+  | { status: 'ok', advisory: TravelAdvisory }
+  | { status: 'not_found' }
+  | { status: 'unavailable' }
 
-const advisoryCache = new Map<string, { expiresAt: number, data: TravelAdvisory | null }>()
+const DEFAULT_TRAVEL_API_BASE = 'https://soul-cartography-advisory-api.mitchellrbenjamin.workers.dev'
+const ENDPOINT_PATH = '/api/v1/travel-advisory'
+const SUCCESS_CACHE_TTL_MS = 15 * 60 * 1000
+const ERROR_CACHE_TTL_MS = 60 * 1000
+
+const advisoryCache = new Map<string, { expiresAt: number, data: TravelAdvisoryLookup }>()
+
+function resolveTravelApiBase(): string {
+  const configured = (import.meta.env.VITE_TRAVEL_API_BASE as string | undefined)?.replace(/\/+$/, '')
+  if (configured) return configured
+
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://127.0.0.1:8787'
+    }
+  }
+
+  return DEFAULT_TRAVEL_API_BASE
+}
 
 function advisoryUrl(country: string): string {
   const query = `country=${encodeURIComponent(country)}`
-  return API_BASE ? `${API_BASE}${ENDPOINT_PATH}?${query}` : `${ENDPOINT_PATH}?${query}`
+  const apiBase = resolveTravelApiBase()
+  return apiBase ? `${apiBase}${ENDPOINT_PATH}?${query}` : `${ENDPOINT_PATH}?${query}`
 }
 
 export async function fetchTravelAdvisory(
   country: string,
   signal?: AbortSignal,
-): Promise<TravelAdvisory | null> {
+): Promise<TravelAdvisoryLookup> {
   const normalizedCountry = country.trim()
-  if (!normalizedCountry) return null
+  if (!normalizedCountry) {
+    return { status: 'not_found' }
+  }
 
   const cacheKey = normalizedCountry.toLowerCase()
   const cached = advisoryCache.get(cacheKey)
@@ -40,29 +59,57 @@ export async function fetchTravelAdvisory(
   }
 
   try {
-    const response = await fetch(advisoryUrl(normalizedCountry), { signal })
+    const url = advisoryUrl(normalizedCountry)
+    const response = await fetch(url, { signal })
     if (response.status === 404) {
-      advisoryCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, data: null })
-      return null
+      const result: TravelAdvisoryLookup = { status: 'not_found' }
+      advisoryCache.set(cacheKey, { expiresAt: Date.now() + SUCCESS_CACHE_TTL_MS, data: result })
+      return result
     }
     if (!response.ok) {
-      return null
+      console.warn('Travel advisory request failed', {
+        country: normalizedCountry,
+        status: response.status,
+        url,
+      })
+      return cacheUnavailableResult(cacheKey)
     }
 
     const payload = await response.json() as Partial<TravelAdvisory>
     if (!isTravelAdvisory(payload)) {
-      return null
+      console.warn('Travel advisory response payload was invalid', {
+        country: normalizedCountry,
+        url,
+      })
+      return cacheUnavailableResult(cacheKey)
     }
 
+    const result: TravelAdvisoryLookup = { status: 'ok', advisory: payload }
     advisoryCache.set(cacheKey, {
-      expiresAt: Date.now() + CACHE_TTL_MS,
-      data: payload,
+      expiresAt: Date.now() + SUCCESS_CACHE_TTL_MS,
+      data: result,
     })
 
-    return payload
-  } catch {
-    return null
+    return result
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === 'AbortError')) {
+      console.warn('Travel advisory request failed', {
+        country: normalizedCountry,
+        error,
+        url: advisoryUrl(normalizedCountry),
+      })
+    }
+    return cacheUnavailableResult(cacheKey)
   }
+}
+
+function cacheUnavailableResult(cacheKey: string): TravelAdvisoryLookup {
+  const result: TravelAdvisoryLookup = { status: 'unavailable' }
+  advisoryCache.set(cacheKey, {
+    expiresAt: Date.now() + ERROR_CACHE_TTL_MS,
+    data: result,
+  })
+  return result
 }
 
 function isTravelAdvisory(payload: Partial<TravelAdvisory>): payload is TravelAdvisory {

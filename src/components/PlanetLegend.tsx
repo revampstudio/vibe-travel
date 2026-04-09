@@ -2,14 +2,14 @@ import { motion } from 'framer-motion'
 import { useStore } from '../store/useStore.ts'
 import type { Planet } from '../types/index.ts'
 
-const PLANET_META: { planet: Planet; color: string; symbol: string }[] = [
-  { planet: 'Sun', color: '#F9A825', symbol: '\u2609' },
-  { planet: 'Moon', color: '#78909C', symbol: '\u263D' },
-  { planet: 'Mercury', color: '#00ACC1', symbol: '\u263F' },
-  { planet: 'Venus', color: '#E84393', symbol: '\u2640' },
-  { planet: 'Mars', color: '#E53935', symbol: '\u2642' },
-  { planet: 'Jupiter', color: '#6C5CE7', symbol: '\u2643' },
-  { planet: 'Saturn', color: '#A67C52', symbol: '\u2644' },
+const PLANET_META: { planet: Planet; color: string }[] = [
+  { planet: 'Sun', color: '#F9A825' },
+  { planet: 'Moon', color: '#78909C' },
+  { planet: 'Mercury', color: '#00ACC1' },
+  { planet: 'Venus', color: '#E84393' },
+  { planet: 'Mars', color: '#E53935' },
+  { planet: 'Jupiter', color: '#6C5CE7' },
+  { planet: 'Saturn', color: '#A67C52' },
 ]
 
 export default function PlanetLegend() {
@@ -25,7 +25,7 @@ export default function PlanetLegend() {
     >
       <div className="bg-white/95 backdrop-blur-md rounded-2xl px-2 py-2 shadow-sm border border-border/60
                       flex items-center gap-0.5">
-        {PLANET_META.map(({ planet, color, symbol }) => {
+        {PLANET_META.map(({ planet, color }) => {
           const enabled = enabledPlanets.has(planet)
           return (
             <button

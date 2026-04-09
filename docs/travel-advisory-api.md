@@ -43,6 +43,10 @@ Response:
 3. Start web app from repo root:
    - `npm run dev`
 
+If `VITE_TRAVEL_API_BASE` is unset and the web app is running on `localhost`, the frontend now defaults to `http://127.0.0.1:8787`.
+
+In local `wrangler dev`, the Smartraveller export can hang when fetched directly by the worker runtime. To keep local development usable, localhost requests fall back to a bundled snapshot in `worker/fixtures/smartraveller.snapshot.json` if the live export times out.
+
 Optional local source override for testing:
 
 - `SMARTRAVELLER_EXPORT_URL=http://127.0.0.1:9090/fixtures/smartraveller.sample.json wrangler dev`

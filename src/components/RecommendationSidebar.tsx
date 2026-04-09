@@ -62,17 +62,27 @@ type SidebarPanelMode = 'locations' | 'about'
 type AdvisoryLevel = 1 | 2 | 3 | 4
 type AdvisoryLevelMap = Record<string, AdvisoryLevel | null>
 
+function advisoryTone(level: AdvisoryLevel | null): { label: string, className: string } | null {
+  if (!level || level <= 1) return null
+  if (level === 2) return { label: 'Travel advice level 2', className: 'bg-amber-50 text-amber-800 border-amber-200' }
+  if (level === 3) return { label: 'Travel advice level 3', className: 'bg-orange-50 text-orange-800 border-orange-200' }
+  return { label: 'Travel advice level 4', className: 'bg-red-50 text-red-800 border-red-200' }
+}
+
 export default function RecommendationSidebar() {
+  const view = useStore((s) => s.view)
   const profile = useStore((s) => s.profile)
   const cities = useStore((s) => s.cities)
+  const activeUtilityPanel = useStore((s) => s.activeUtilityPanel)
+  const setActiveUtilityPanel = useStore((s) => s.setActiveUtilityPanel)
   const setSelectedCity = useStore((s) => s.setSelectedCity)
   const setView = useStore((s) => s.setView)
   const highlightedCity = useStore((s) => s.highlightedCity)
   const setHighlightedCity = useStore((s) => s.setHighlightedCity)
-  const [expanded, setExpanded] = useState(false)
   const [panelMode, setPanelMode] = useState<SidebarPanelMode>('locations')
   const [advisoryLevelsByCountry, setAdvisoryLevelsByCountry] = useState<AdvisoryLevelMap>({})
   const cityKey = (city: CityWithEnergy) => `${city.name}|${city.country}`
+  const expanded = activeUtilityPanel === 'insights'
 
   const needs = useMemo(
     () => (profile ? getNumerologyNeeds(profile) : null),
@@ -167,7 +177,7 @@ export default function RecommendationSidebar() {
         const advisory = await fetchTravelAdvisory(country)
         return {
           country,
-          level: advisory?.adviceLevel ?? null,
+          level: advisory.status === 'ok' ? advisory.advisory.adviceLevel : null,
         }
       }),
     ).then((entries) => {
@@ -193,137 +203,140 @@ export default function RecommendationSidebar() {
   if (!profile || !needs || ranked.length === 0) return null
 
   const handleCityClick = (city: CityWithEnergy) => {
+    setActiveUtilityPanel(null)
     setSelectedCity(city)
     setView('detail')
-  }
-  const openPanel = (mode: SidebarPanelMode) => {
-    setPanelMode(mode)
-    setExpanded(true)
   }
 
   return (
     <>
-      {/* ── Launcher buttons: always rendered, sit near settings, behind panel when open ── */}
-      <button
-        className="absolute top-[4.25rem] left-4 z-[15] size-10 rounded-xl bg-white/90 backdrop-blur-md
-                   border border-border/60 shadow-sm flex items-center justify-center
-                   cursor-pointer hover:bg-white transition-colors"
-        onClick={() => openPanel('locations')}
-        aria-label="Show recommended locations"
-      >
-        <svg className="size-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round"
-            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-        </svg>
-      </button>
-      <button
-        className="absolute top-[7.5rem] left-4 z-[15] size-10 rounded-xl bg-white/90 backdrop-blur-md
-                   border border-border/60 shadow-sm flex items-center justify-center
-                   cursor-pointer hover:bg-white transition-colors"
-        onClick={() => openPanel('about')}
-        aria-label="Show about you insights"
-      >
-        <svg className="size-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6.75a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 20.25a7.5 7.5 0 0115 0" />
-        </svg>
-      </button>
+      {activeUtilityPanel === null && (
+        <div className={`absolute left-4 top-[4.25rem] z-[24] ${view === 'detail' ? 'hidden lg:block' : 'block'}`}>
+          <button
+            className="floating-control flex min-h-[48px] items-center gap-2.5 rounded-full pl-2.5 pr-3 text-left transition hover:border-border-strong hover:bg-white sm:min-h-[52px] sm:gap-3 sm:pl-3 sm:pr-3.5"
+            onClick={() => setActiveUtilityPanel('insights')}
+            aria-label="Open insights panel"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-light text-accent sm:h-9 sm:w-9">
+              <svg className="size-4 sm:size-[1.05rem]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+            </span>
+            <span className="text-sm font-semibold text-text">Insights</span>
+            <span className="hidden rounded-full bg-surface-soft px-2.5 py-1 text-xs font-semibold text-muted sm:inline-flex">
+              Year {profile.personalYear}
+            </span>
+            <svg className="size-3.5 text-muted sm:size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      )}
 
-      {/* ── Expanded panel: slides over the pill ── */}
       <AnimatePresence>
         {expanded && (
           <motion.div
             key="panel"
-            className="absolute top-0 left-0 bottom-0 z-20 w-[360px] flex flex-col
-                       bg-white/92 backdrop-blur-xl rounded-r-2xl border-r border-border/60 shadow-lg"
-            initial={{ x: -360 }}
+            className={`floating-panel absolute bottom-4 left-4 top-[4.25rem] z-[34] w-[calc(100%-2rem)] max-w-[25rem] flex-col rounded-[2rem] ${view === 'detail' ? 'hidden lg:flex' : 'flex'}`}
+            initial={{ x: -420 }}
             animate={{ x: 0 }}
-            exit={{ x: -360 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            exit={{ x: -420 }}
+            transition={{ type: 'spring', damping: 33, stiffness: 290 }}
           >
-            {/* Top padding to clear settings gear */}
-            <div className="pt-16 flex flex-col h-full min-h-0">
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 pb-3 flex-shrink-0">
+            <div className="flex h-full min-h-0 flex-col px-5 pb-5 pt-5 md:px-6 md:pb-6 md:pt-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="font-serif text-sm font-semibold text-text tracking-tight">
-                    {panelMode === 'locations' ? 'Recommended Locations' : 'About You'}
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="rounded-full bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent-strong">
+                      Year {profile.personalYear}
+                    </span>
+                    <span className="text-xs font-medium text-muted">{profile.lifeStage}</span>
+                  </div>
+                  <h2 className="font-serif text-[1.5rem] leading-tight text-text">
+                    {panelMode === 'locations' ? 'Best-fit places' : 'Your cycle'}
                   </h2>
-                  <p className="text-[10px] text-muted mt-1">
+                  <p className="mt-1.5 max-w-[18rem] text-sm leading-relaxed text-muted">
                     {panelMode === 'locations'
-                      ? 'Best cities for your cycle and raw energy.'
-                      : 'Your numerology themes in plain language.'}
+                      ? 'Cities that match your current cycle and strongest lines.'
+                      : 'A plain-language view of your numerology themes and timing.'}
                   </p>
                 </div>
                 <button
-                  onClick={() => setExpanded(false)}
-                  className="size-7 rounded-lg flex items-center justify-center text-muted
-                             hover:bg-surface transition-colors cursor-pointer"
+                  onClick={() => setActiveUtilityPanel(null)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/80 bg-white text-muted transition hover:border-border-strong hover:bg-surface-soft hover:text-text"
                   aria-label="Collapse panel"
                 >
-                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
               </div>
 
-              {/* Scrollable content */}
-              <div
-                className="flex-1 min-h-0 overflow-y-auto px-5 pb-5 space-y-2.5"
-                style={{ scrollbarWidth: 'thin' }}
-              >
+              <div className="mb-5 flex rounded-2xl border border-border/80 bg-surface-soft p-1">
+                <button
+                  type="button"
+                  onClick={() => setPanelMode('locations')}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    panelMode === 'locations'
+                      ? 'bg-white text-text shadow-[0_10px_18px_-16px_rgba(17,24,39,0.25)]'
+                      : 'text-muted hover:text-text'
+                  }`}
+                >
+                  Locations
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPanelMode('about')}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                    panelMode === 'about'
+                      ? 'bg-white text-text shadow-[0_10px_18px_-16px_rgba(17,24,39,0.25)]'
+                      : 'text-muted hover:text-text'
+                  }`}
+                >
+                  About
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-0 space-y-4 overflow-y-auto pr-1">
                 {panelMode === 'locations' && (
-                  <div className="rounded-xl bg-accent/5 border border-accent/15 p-3.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-accent mb-1.5">
-                      Why these places rank first
+                  <section className="rounded-[1.4rem] border border-border/80 bg-surface-soft px-4 py-4">
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-accent-strong">
+                      Why these places lead
                     </p>
-                    <p className="text-xs text-muted leading-relaxed">
+                    <p className="text-sm leading-relaxed text-text">
                       Year {profile.personalYear} ({profile.lifeStage}): {needs.description}
                     </p>
-                    <p className="mt-1.5 text-[11px] text-muted leading-relaxed">
-                      Ranking method: 60% match to your year&apos;s key planet-lines + 40% proximity energy from how
-                      close the city is to your planetary paths.
+                    <p className="mt-2 text-xs leading-relaxed text-muted">
+                      Ranking blend: yearly fit and overall alignment energy.
                     </p>
-                  </div>
+                  </section>
                 )}
 
                 {panelMode === 'about' && (
-                  <div className="rounded-xl bg-accent/5 border border-accent/15 p-3.5">
-                    <div className="flex items-center gap-2.5 mb-1.5">
-                      <span className="text-xs font-semibold text-accent bg-accent/10 px-2 py-0.5 rounded-full">
-                        Year {profile.personalYear}
-                      </span>
-                      <span className="text-xs font-medium text-text">
-                        {profile.lifeStage}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted leading-relaxed">
-                      {profile.lifeStageDescription}
-                    </p>
-                  </div>
+                  <section className="rounded-[1.4rem] border border-border/80 bg-surface-soft px-4 py-4">
+                    <p className="text-sm font-semibold text-text">{profile.lifeStage}</p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-muted">{profile.lifeStageDescription}</p>
+                  </section>
                 )}
 
-                {/* About you card */}
                 {panelMode === 'about' && (
-                  <section className="rounded-xl border border-border/60 bg-white p-3.5 space-y-3">
+                  <section className="space-y-3 rounded-[1.4rem] border border-border/85 bg-white px-4 py-4 shadow-[0_14px_28px_-26px_rgba(17,24,39,0.26)]">
                     <div>
-                      <h3 className="text-xs font-semibold text-text">About You</h3>
-                      <p className="text-[11px] text-muted leading-relaxed mt-1">
+                      <h3 className="text-sm font-semibold text-text">Your cycle snapshot</h3>
+                      <p className="mt-1 text-sm leading-relaxed text-muted">
                         {getCycleYearLabel(profile.personalYear)}. {profile.lifeStageDescription}
                       </p>
-                      <p className="text-[10px] text-muted leading-relaxed mt-1.5">
-                        {INSIGHT_METHOD}
-                      </p>
+                      <p className="mt-1.5 text-xs leading-relaxed text-muted">{INSIGHT_METHOD}</p>
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-1.5">
-                        Focus Right Now
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-muted">
+                        Focus right now
                       </p>
                       <ul className="space-y-1.5">
                         {focusAreas.map((focus) => (
-                          <li key={focus} className="flex items-start gap-2 text-[11px] text-text">
-                            <span className="mt-1 size-1.5 rounded-full bg-accent/70 flex-shrink-0" />
+                          <li key={focus} className="flex items-start gap-2.5 text-sm leading-relaxed text-text">
+                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                             <span>{focus}</span>
                           </li>
                         ))}
@@ -331,240 +344,212 @@ export default function RecommendationSidebar() {
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-1.5">
-                        Core Numbers
-                      </p>
-                      <p className="text-[10px] text-muted leading-relaxed mb-2">
-                        Plain-language summary of your core tendencies.
-                      </p>
-                      <div className="space-y-2">
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-muted">Core numbers</p>
+                      <div className="space-y-2.5">
                         {coreNumbers.map((item) => (
-                          <div key={item.label} className="rounded-lg border border-border/60 bg-surface/45 p-2.5">
+                          <div key={item.label} className="rounded-xl border border-border/75 bg-surface px-3 py-3">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted">{item.label}</p>
-                              <span className="text-xs font-semibold text-text">No. {item.value}</span>
+                              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{item.numerologyLabel}</p>
+                              <span className="text-sm font-semibold text-text">No. {item.value}</span>
                             </div>
-                            <p className="mt-1 text-[11px] text-muted leading-relaxed">{item.detail}</p>
-                            <p className="mt-1 text-[10px] text-muted leading-relaxed">
-                              Numerology label: {item.numerologyLabel}
-                            </p>
+                            <p className="mt-1.5 text-sm text-text">{item.label}</p>
+                            <p className="mt-1 text-sm leading-relaxed text-muted">{item.detail}</p>
                           </div>
                         ))}
                       </div>
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted mb-1.5">
-                        Timing Snapshot
-                      </p>
-                      <p className="text-[10px] text-muted leading-relaxed mb-2">
-                        What to focus on now and what is coming next.
-                      </p>
-                      <div className="space-y-2">
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-muted">Timing snapshot</p>
+                      <div className="space-y-2.5">
                         {timingSnapshot.map((item) => (
-                          <div key={item.label} className="rounded-lg border border-border/60 bg-white p-2.5">
+                          <div key={item.label} className="rounded-xl border border-border/75 bg-surface px-3 py-3">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted">{item.label}</p>
-                              <span className="text-xs font-semibold text-text">No. {item.value}</span>
+                              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{item.numerologyLabel}</p>
+                              <span className="text-sm font-semibold text-text">No. {item.value}</span>
                             </div>
-                            <p className="mt-1 text-[11px] text-muted leading-relaxed">{item.detail}</p>
-                            <p className="mt-1 text-[10px] text-muted leading-relaxed">
-                              Numerology label: {item.numerologyLabel}
-                            </p>
+                            <p className="mt-1.5 text-sm text-text">{item.label}</p>
+                            <p className="mt-1 text-sm leading-relaxed text-muted">{item.detail}</p>
                           </div>
                         ))}
                       </div>
                     </div>
-
                   </section>
                 )}
 
                 {panelMode === 'locations' && (
                   <>
-                {/* Yearly best places */}
-                <section className="space-y-2">
-                  <div className="px-0.5">
-                    <h3 className="text-[11px] font-semibold text-text uppercase tracking-wide">
-                      Yearly Best Places
-                    </h3>
-                    <p className="text-[10px] text-muted mt-1">
-                      These combine your Year {profile.personalYear} planet-line matches with line proximity energy.
-                    </p>
-                  </div>
-                  {yearlyBest.length === 0 && (
-                    <p className="rounded-xl border border-border/60 bg-white p-3 text-[11px] text-muted leading-relaxed">
-                      No strong yearly goal matches found in your current map slice. Check Overall Best Places for
-                      high-energy options.
-                    </p>
-                  )}
-                  {yearlyBest.map(({ city, reason, matchingInfluences, goalAlignment, energyAlignment }) => {
-                    const key = cityKey(city)
-                    const isHighlighted = highlightedCity === key
-                    const yearlyPercent = Math.round(goalAlignment * 100)
-                    const energyPercent = Math.round(energyAlignment * 100)
-                    const isDualMatch = overallKeys.has(key)
-                    const advisoryLevel = advisoryLevelsByCountry[city.country] ?? null
+                    <section className="space-y-2.5">
+                      <div className="px-0.5">
+                        <h3 className="text-sm font-semibold text-text">Best for this year</h3>
+                        <p className="mt-1 text-xs leading-relaxed text-muted">
+                          The clearest matches for your current cycle and line pattern.
+                        </p>
+                      </div>
 
-                    return (
-                      <button
-                        key={`yearly-${key}`}
-                        className={`w-full text-left rounded-xl border bg-white p-3.5
-                                    transition-all duration-150 cursor-pointer group
-                                    ${isHighlighted
-                                      ? 'border-l-2 border-l-accent border-t-border/60 border-r-border/60 border-b-border/60 bg-accent/5'
-                                      : 'border-border/60 hover:bg-surface/80'
-                                    }`}
-                        onClick={() => handleCityClick(city)}
-                        onMouseEnter={() => setHighlightedCity(key)}
-                        onMouseLeave={() => setHighlightedCity(null)}
-                      >
-                        <div className="flex items-baseline justify-between mb-2">
-                          <div>
-                            <span className="text-sm font-semibold text-text group-hover:text-accent transition-colors">
-                              {city.name}
-                            </span>
-                            <span className="text-xs text-muted ml-1.5">{city.country}</span>
-                          </div>
-                        </div>
+                      {yearlyBest.length === 0 && (
+                        <p className="rounded-xl border border-border/80 bg-surface px-3.5 py-3 text-sm leading-relaxed text-muted">
+                          No strong yearly matches in this map slice yet. Check overall best places for strong energy options.
+                        </p>
+                      )}
 
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                          <span className="text-[10px] font-semibold text-accent bg-accent/10 px-2 py-0.5 rounded-full">
-                            Yearly match {yearlyPercent}%
-                          </span>
-                          {isDualMatch && (
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                              Also high energy
-                            </span>
-                          )}
-                          {advisoryLevel !== null && advisoryLevel > 1 && (
-                            <span className="text-[10px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
-                              Travel advisory in place
-                            </span>
-                          )}
-                        </div>
+                        {yearlyBest.map(({ city, reason, matchingInfluences, goalAlignment, energyAlignment }) => {
+                        const key = cityKey(city)
+                        const isHighlighted = highlightedCity === key
+                        const yearlyPercent = Math.round(goalAlignment * 100)
+                        const energyPercent = Math.round(energyAlignment * 100)
+                        const isDualMatch = overallKeys.has(key)
+                        const advisoryLevel = advisoryLevelsByCountry[city.country] ?? null
+                        const advisory = advisoryTone(advisoryLevel)
 
-                        {matchingInfluences.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mb-2">
-                            {matchingInfluences.slice(0, 2).map((inf) => (
-                              <span
-                                key={`${key}-${inf.planet}-${inf.lineType}`}
-                                className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                                style={{
-                                  backgroundColor: `${PLANET_COLORS[inf.planet]}12`,
-                                  color: PLANET_COLORS[inf.planet],
-                                }}
-                              >
-                                <span
-                                  className="size-1.5 rounded-full inline-block flex-shrink-0"
-                                  style={{ backgroundColor: PLANET_COLORS[inf.planet] }}
-                                />
-                                {inf.label}
+                        return (
+                          <button
+                            key={`yearly-${key}`}
+                            className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition-all duration-150 ${
+                              isHighlighted
+                                ? 'border-accent/25 bg-white shadow-[0_18px_34px_-26px_rgba(227,28,75,0.3)]'
+                                : 'border-border/80 bg-white shadow-[0_12px_26px_-24px_rgba(17,24,39,0.2)] hover:border-border-strong hover:bg-surface'
+                            }`}
+                            onClick={() => handleCityClick(city)}
+                            onMouseEnter={() => setHighlightedCity(key)}
+                            onMouseLeave={() => setHighlightedCity(null)}
+                          >
+                            <div className="mb-2 flex items-baseline justify-between gap-2">
+                              <p className="text-[15px] font-semibold text-text">
+                                {city.name}
+                                <span className="ml-1.5 text-sm font-medium text-muted">{city.country}</span>
+                              </p>
+                            </div>
+
+                            <div className="mb-2.5 flex flex-wrap gap-1.5">
+                              <span className="rounded-full border border-accent/15 bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent-strong">
+                                Yearly {yearlyPercent}%
                               </span>
-                            ))}
-                          </div>
-                        )}
-
-                        <p className="text-[11px] text-muted leading-relaxed mb-2">
-                          {reason}
-                        </p>
-
-                        <p className="text-[10px] font-medium text-muted">
-                          Energy alignment: <span className="font-semibold text-text">{energyPercent}%</span>
-                        </p>
-                      </button>
-                    )
-                  })}
-                </section>
-
-                {/* Overall best places */}
-                <section className="space-y-2 pt-1">
-                  <div className="px-0.5">
-                    <h3 className="text-[11px] font-semibold text-text uppercase tracking-wide">
-                      Overall Best Places
-                    </h3>
-                    <p className="text-[10px] text-muted mt-1">
-                      Highest raw-energy cities on your map, regardless of yearly cycle.
-                    </p>
-                  </div>
-                  {overallBest.map(({ city, reason, matchingInfluences, isTopEnergyPick, energyAlignment, goalAlignment }) => {
-                    const key = cityKey(city)
-                    const isHighlighted = highlightedCity === key
-                    const energyPercent = Math.round(energyAlignment * 100)
-                    const yearlyPercent = Math.round(goalAlignment * 100)
-                    const advisoryLevel = advisoryLevelsByCountry[city.country] ?? null
-
-                    return (
-                      <button
-                        key={`overall-${key}`}
-                        className={`w-full text-left rounded-xl border bg-white p-3.5
-                                    transition-all duration-150 cursor-pointer group
-                                    ${isHighlighted
-                                      ? 'border-l-2 border-l-emerald-600 border-t-border/60 border-r-border/60 border-b-border/60 bg-emerald-50/40'
-                                      : 'border-border/60 hover:bg-surface/80'
-                                    }`}
-                        onClick={() => handleCityClick(city)}
-                        onMouseEnter={() => setHighlightedCity(key)}
-                        onMouseLeave={() => setHighlightedCity(null)}
-                      >
-                        <div className="flex items-baseline justify-between mb-2">
-                          <div>
-                            <span className="text-sm font-semibold text-text group-hover:text-accent transition-colors">
-                              {city.name}
-                            </span>
-                            <span className="text-xs text-muted ml-1.5">{city.country}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                            Energy {energyPercent}%
-                          </span>
-                          {isTopEnergyPick && (
-                            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                              Top energy
-                            </span>
-                          )}
-                          {yearlyPercent > 0 && (
-                            <span className="text-[10px] font-semibold text-accent bg-accent/10 px-2 py-0.5 rounded-full">
-                              Yearly match {yearlyPercent}%
-                            </span>
-                          )}
-                          {advisoryLevel !== null && advisoryLevel > 1 && (
-                            <span className="text-[10px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
-                              Travel advisory in place
-                            </span>
-                          )}
-                        </div>
-
-                        {matchingInfluences.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mb-2">
-                            {matchingInfluences.slice(0, 2).map((inf) => (
-                              <span
-                                key={`${key}-overall-${inf.planet}-${inf.lineType}`}
-                                className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                                style={{
-                                  backgroundColor: `${PLANET_COLORS[inf.planet]}12`,
-                                  color: PLANET_COLORS[inf.planet],
-                                }}
-                              >
-                                <span
-                                  className="size-1.5 rounded-full inline-block flex-shrink-0"
-                                  style={{ backgroundColor: PLANET_COLORS[inf.planet] }}
-                                />
-                                {inf.label}
+                              <span className="rounded-full border border-border-strong/70 bg-surface-soft px-2.5 py-1 text-xs font-semibold text-text">
+                                Energy {energyPercent}%
                               </span>
-                            ))}
-                          </div>
-                        )}
+                              {isDualMatch && (
+                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                                  High energy too
+                                </span>
+                              )}
+                              {advisory && (
+                                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${advisory.className}`}>
+                                  {advisory.label}
+                                </span>
+                              )}
+                            </div>
 
-                        <p className="text-[11px] text-muted leading-relaxed">
-                          {reason}
+                            {matchingInfluences.length > 0 && (
+                              <div className="mb-2 flex flex-wrap gap-1.5">
+                                {matchingInfluences.slice(0, 2).map((influence) => (
+                                  <span
+                                    key={`${key}-${influence.planet}-${influence.lineType}`}
+                                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                                    style={{
+                                      backgroundColor: `${PLANET_COLORS[influence.planet]}14`,
+                                      color: PLANET_COLORS[influence.planet],
+                                    }}
+                                  >
+                                    <span
+                                      className="inline-block h-1.5 w-1.5 rounded-full"
+                                      style={{ backgroundColor: PLANET_COLORS[influence.planet] }}
+                                    />
+                                    {influence.label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <p className="text-sm leading-relaxed text-muted">{reason}</p>
+                          </button>
+                        )
+                      })}
+                    </section>
+
+                    <section className="space-y-2.5 pt-1">
+                      <div className="px-0.5">
+                        <h3 className="text-sm font-semibold text-text">Highest alignment overall</h3>
+                        <p className="mt-1 text-xs leading-relaxed text-muted">
+                          Strongest places on the map, regardless of your current year.
                         </p>
-                      </button>
-                    )
-                  })}
-                </section>
-                </>
+                      </div>
+
+                        {overallBest.map(({ city, reason, matchingInfluences, isTopEnergyPick, energyAlignment, goalAlignment }) => {
+                        const key = cityKey(city)
+                        const isHighlighted = highlightedCity === key
+                        const energyPercent = Math.round(energyAlignment * 100)
+                        const yearlyPercent = Math.round(goalAlignment * 100)
+                        const advisoryLevel = advisoryLevelsByCountry[city.country] ?? null
+                        const advisory = advisoryTone(advisoryLevel)
+
+                        return (
+                          <button
+                            key={`overall-${key}`}
+                            className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition-all duration-150 ${
+                              isHighlighted
+                                ? 'border-accent/25 bg-white shadow-[0_18px_34px_-26px_rgba(227,28,75,0.3)]'
+                                : 'border-border/80 bg-white shadow-[0_12px_26px_-24px_rgba(17,24,39,0.2)] hover:border-border-strong hover:bg-surface'
+                            }`}
+                            onClick={() => handleCityClick(city)}
+                            onMouseEnter={() => setHighlightedCity(key)}
+                            onMouseLeave={() => setHighlightedCity(null)}
+                          >
+                            <div className="mb-2 flex items-baseline justify-between gap-2">
+                              <p className="text-[15px] font-semibold text-text">
+                                {city.name}
+                                <span className="ml-1.5 text-sm font-medium text-muted">{city.country}</span>
+                              </p>
+                            </div>
+
+                            <div className="mb-2.5 flex flex-wrap gap-1.5">
+                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                                Energy {energyPercent}%
+                              </span>
+                              {isTopEnergyPick && (
+                                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                                  Top energy
+                                </span>
+                              )}
+                              {yearlyPercent > 0 && (
+                                <span className="rounded-full border border-accent/15 bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent-strong">
+                                  Yearly {yearlyPercent}%
+                                </span>
+                              )}
+                              {advisory && (
+                                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${advisory.className}`}>
+                                  {advisory.label}
+                                </span>
+                              )}
+                            </div>
+
+                            {matchingInfluences.length > 0 && (
+                              <div className="mb-2 flex flex-wrap gap-1.5">
+                                {matchingInfluences.slice(0, 2).map((influence) => (
+                                  <span
+                                    key={`${key}-overall-${influence.planet}-${influence.lineType}`}
+                                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                                    style={{
+                                      backgroundColor: `${PLANET_COLORS[influence.planet]}14`,
+                                      color: PLANET_COLORS[influence.planet],
+                                    }}
+                                  >
+                                    <span
+                                      className="inline-block h-1.5 w-1.5 rounded-full"
+                                      style={{ backgroundColor: PLANET_COLORS[influence.planet] }}
+                                    />
+                                    {influence.label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <p className="text-sm leading-relaxed text-muted">{reason}</p>
+                          </button>
+                        )
+                      })}
+                    </section>
+                  </>
                 )}
               </div>
             </div>

@@ -3,10 +3,12 @@ import {
   parseSmartravellerExport,
   type AdvisoryDestination,
 } from './smartraveller'
+import bundledSnapshotPayload from '../fixtures/smartraveller.snapshot.json'
 
 const SOURCE_URL = 'https://www.smartraveller.gov.au/destinations-export'
 const CACHE_KEY_URL = 'https://cache.soul-cartography.internal/smartraveller/v2'
 const MAX_SNAPSHOT_AGE_MS = 6 * 60 * 60 * 1000
+const UPSTREAM_TIMEOUT_MS = 8000
 
 interface WorkerEnv {
   SMARTRAVELLER_EXPORT_URL?: string
@@ -73,7 +75,9 @@ async function handleTravelAdvisoryRequest(
     return jsonResponse({ error: 'Missing required query parameter: country' }, 400)
   }
 
-  const snapshotResult = await getSnapshot(env, ctx)
+  const snapshotResult = await getSnapshot(env, ctx, {
+    useBundledFallback: isLocalDevelopmentHost(url.hostname),
+  })
   if (!snapshotResult) {
     return jsonResponse(
       { error: 'Upstream advisory feed unavailable and no cached snapshot is present' },
@@ -110,6 +114,7 @@ async function handleTravelAdvisoryRequest(
 async function getSnapshot(
   env: WorkerEnv,
   ctx: WorkerExecutionContext,
+  options: { useBundledFallback: boolean },
 ): Promise<{ snapshot: AdvisorySnapshot, freshness: 'fresh' | 'stale' } | null> {
   const cache = await caches.open('travel-advisory-cache-v1')
   const cacheKey = new Request(CACHE_KEY_URL)
@@ -121,7 +126,7 @@ async function getSnapshot(
   }
 
   try {
-    const freshSnapshot = await fetchAndNormalizeSnapshot(env)
+    const freshSnapshot = await fetchAndNormalizeSnapshot(env, options)
     const cacheResponse = new Response(JSON.stringify(freshSnapshot), {
       headers: {
         'content-type': 'application/json; charset=utf-8',
@@ -138,20 +143,12 @@ async function getSnapshot(
   }
 }
 
-async function fetchAndNormalizeSnapshot(env: WorkerEnv): Promise<AdvisorySnapshot> {
+async function fetchAndNormalizeSnapshot(
+  env: WorkerEnv,
+  options: { useBundledFallback: boolean },
+): Promise<AdvisorySnapshot> {
   const sourceUrl = advisorySourceUrl(env)
-  const response = await fetch(sourceUrl, {
-    headers: {
-      accept: 'application/json',
-      'user-agent': 'soul-cartography-advisory-api/1.0',
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed upstream request: ${response.status}`)
-  }
-
-  const payload = await response.json()
+  const payload = await fetchSnapshotPayload(sourceUrl, options.useBundledFallback)
   const destinations = parseSmartravellerExport(payload)
 
   if (!destinations.length) {
@@ -167,9 +164,51 @@ async function fetchAndNormalizeSnapshot(env: WorkerEnv): Promise<AdvisorySnapsh
   }
 }
 
+async function fetchSnapshotPayload(
+  sourceUrl: string,
+  useBundledFallback: boolean,
+): Promise<unknown> {
+  try {
+    return await fetchJsonWithTimeout(sourceUrl, UPSTREAM_TIMEOUT_MS)
+  } catch (error) {
+    if (useBundledFallback && sourceUrl === SOURCE_URL) {
+      console.warn('Falling back to bundled Smartraveller snapshot in local development', { error })
+      return bundledSnapshotPayload
+    }
+    throw error
+  }
+}
+
+async function fetchJsonWithTimeout(sourceUrl: string, timeoutMs: number): Promise<unknown> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
+
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: {
+        accept: 'application/json',
+        'user-agent': 'soul-cartography-advisory-api/1.0',
+      },
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed upstream request: ${response.status}`)
+    }
+
+    return await response.json()
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 function advisorySourceUrl(env: WorkerEnv): string {
   const configured = env.SMARTRAVELLER_EXPORT_URL?.trim()
   return configured || SOURCE_URL
+}
+
+function isLocalDevelopmentHost(hostname: string): boolean {
+  return hostname === '127.0.0.1' || hostname === 'localhost'
 }
 
 function isSnapshotFresh(fetchedAt: string): boolean {

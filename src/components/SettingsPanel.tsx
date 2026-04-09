@@ -1,24 +1,28 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../store/useStore.ts'
 import { calcSoulProfile } from '../lib/numerology.ts'
 import { computeAstroLines } from '../lib/astrocartography.ts'
+import { PLANET_COLORS, PLANETS } from '../lib/astrocartography.ts'
+import { ENERGY_TIERS, LINE_TYPE_STYLES } from '../lib/mapGuidance.ts'
+import {
+  preloadBirthCityAutocomplete,
+  searchBirthCities,
+  type GeoResult,
+} from '../lib/birthCityAutocomplete.ts'
 import { loadCities } from '../data/loadCities.ts'
 import { enrichCitiesWithEnergy } from '../lib/geo.ts'
 import type { BirthData } from '../types/index.ts'
-
-interface GeoResult {
-  place_name: string
-  center: [number, number]
-}
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string
 
 export default function SettingsPanel() {
   const birthData = useStore((s) => s.birthData)
+  const enabledPlanets = useStore((s) => s.enabledPlanets)
+  const activeUtilityPanel = useStore((s) => s.activeUtilityPanel)
+  const setActiveUtilityPanel = useStore((s) => s.setActiveUtilityPanel)
   const { setBirthData, setProfile, setAstroLines, setCities, setSelectedCity, setView } = useStore()
 
-  const [open, setOpen] = useState(false)
   const [showHow, setShowHow] = useState(false)
   const [date, setDate] = useState(birthData?.date ?? '')
   const [time, setTime] = useState(birthData?.time ?? '12:00')
@@ -29,45 +33,39 @@ export default function SettingsPanel() {
   )
   const [showResults, setShowResults] = useState(false)
   const [saving, setSaving] = useState(false)
-  const panelRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const searchRequestIdRef = useRef(0)
+  const open = activeUtilityPanel === 'settings'
 
-  // Close on outside click
   useEffect(() => {
-    if (!open) return
-    const handle = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [open])
+    preloadBirthCityAutocomplete()
+  }, [])
 
-  // Reset form when opening
-  useEffect(() => {
-    if (open && birthData) {
-      setDate(birthData.date)
-      setTime(birthData.time)
-      setCityQuery(birthData.city)
-      setSelectedGeo({ place_name: birthData.city, center: [birthData.lng, birthData.lat] })
-      setShowResults(false)
-    }
-  }, [open, birthData])
+  const syncFormWithBirthData = useCallback((source: BirthData | null) => {
+    if (!source) return
+    setDate(source.date)
+    setTime(source.time)
+    setCityQuery(source.city)
+    setSelectedGeo({ place_name: source.city, center: [source.lng, source.lat] })
+    setShowResults(false)
+  }, [])
 
   const searchCity = useCallback(async (query: string) => {
+    const requestId = ++searchRequestIdRef.current
+
     if (query.length < 2) {
       setCityResults([])
       return
     }
-    try {
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?types=place&limit=5&access_token=${MAPBOX_TOKEN}`,
-      )
-      const data = await res.json()
-      setCityResults(data.features ?? [])
-    } catch {
-      setCityResults([])
+
+    const results = await searchBirthCities(query, {
+      limit: 5,
+      includeMapbox: true,
+      mapboxToken: MAPBOX_TOKEN,
+    })
+
+    if (requestId === searchRequestIdRef.current) {
+      setCityResults(results)
     }
   }, [])
 
@@ -79,6 +77,11 @@ export default function SettingsPanel() {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [cityQuery, searchCity, showResults])
+
+  const visiblePlanets = useMemo(
+    () => PLANETS.filter((planet) => enabledPlanets.has(planet)),
+    [enabledPlanets],
+  )
 
   const handleSave = async () => {
     if (!date || !selectedGeo) return
@@ -105,18 +108,23 @@ export default function SettingsPanel() {
     setView('globe')
 
     setSaving(false)
-    setOpen(false)
+    setActiveUtilityPanel(null)
   }
 
   const isValid = date && selectedGeo
 
   return (
-    <div ref={panelRef} className={`absolute top-4 left-4 ${open ? 'z-30' : 'z-10'}`}>
+    <div className={`absolute left-4 top-4 ${open ? 'z-[35]' : 'z-10'}`}>
       <motion.button
-        onClick={() => setOpen((o) => !o)}
-        className="size-10 rounded-xl bg-white/90 backdrop-blur-md border border-border/60
-                   shadow-sm flex items-center justify-center cursor-pointer
-                   hover:bg-white transition-colors"
+        onClick={() => {
+          const nextOpen = !open
+          if (nextOpen) {
+            syncFormWithBirthData(birthData)
+            setShowHow(false)
+          }
+          setActiveUtilityPanel(nextOpen ? 'settings' : null)
+        }}
+        className="floating-control flex size-11 items-center justify-center cursor-pointer transition-colors hover:border-border-strong hover:bg-white"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         aria-label="Settings"
@@ -144,44 +152,67 @@ export default function SettingsPanel() {
       <AnimatePresence>
         {open && (
           <motion.div
-            className="absolute top-12 left-0 w-80 max-h-[calc(100vh-5rem)] bg-white/95 backdrop-blur-md
-                       rounded-2xl border border-border/60 shadow-lg flex flex-col"
-            initial={{ opacity: 0, y: -8, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
+            className="floating-panel fixed bottom-4 left-4 top-[4.25rem] z-[34] flex w-[min(25rem,calc(100vw-2rem))] flex-col rounded-[2rem]"
+            initial={{ x: -420 }}
+            animate={{ x: 0 }}
+            exit={{ x: -420 }}
+            transition={{ type: 'spring', damping: 33, stiffness: 290 }}
           >
-            <div className="p-4 space-y-4 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-              <h3 className="text-sm font-semibold text-text">Edit birth data</h3>
+            <div className="flex h-full min-h-0 flex-col px-5 pb-5 pt-5 md:px-6 md:pb-6 md:pt-6">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Settings</p>
+                  <h3 className="mt-1 font-serif text-[1.5rem] leading-tight text-text">Update your details</h3>
+                  <p className="mt-1.5 max-w-[18rem] text-sm leading-relaxed text-muted">
+                    Refresh your map recommendations and keep your birth data accurate.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setActiveUtilityPanel(null)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/80 bg-white text-muted transition hover:border-border-strong hover:bg-surface-soft hover:text-text"
+                  aria-label="Close settings panel"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4 overflow-y-auto pr-1" style={{ scrollbarWidth: 'none' }}>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1.5">Date</label>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-muted">Date</label>
                   <input
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-text text-sm
-                               focus:outline-none focus:border-text/30 transition-colors"
+                    className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-text transition-colors focus:border-border-strong focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-muted mb-1.5">Time</label>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-muted">Time</label>
                   <input
                     type="time"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
-                    className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-text text-sm
-                               focus:outline-none focus:border-text/30 transition-colors"
+                    className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-text transition-colors focus:border-border-strong focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="relative">
-                <label className="block text-xs font-medium text-muted mb-1.5">City</label>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-muted">City</label>
                 <input
                   type="text"
+                  name="profile-city-search"
                   value={cityQuery}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  aria-autocomplete="list"
                   onChange={(e) => {
                     setCityQuery(e.target.value)
                     setSelectedGeo(null)
@@ -189,13 +220,10 @@ export default function SettingsPanel() {
                   }}
                   onFocus={() => setShowResults(true)}
                   placeholder="Search city..."
-                  className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-text text-sm
-                             placeholder:text-muted/50
-                             focus:outline-none focus:border-text/30 transition-colors"
+                  className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-text placeholder:text-muted/60 transition-colors focus:border-border-strong focus:outline-none"
                 />
                 {showResults && cityResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border
-                                  rounded-lg overflow-hidden z-50 shadow-lg">
+                  <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl border border-border bg-white shadow-[0_18px_30px_-20px_rgba(17,24,39,0.4)]">
                     {cityResults.map((result, i) => (
                       <button
                         key={i}
@@ -204,8 +232,7 @@ export default function SettingsPanel() {
                           setCityQuery(result.place_name)
                           setShowResults(false)
                         }}
-                        className="w-full text-left px-3 py-2.5 text-sm text-text hover:bg-surface
-                                   transition-colors border-b border-border/50 last:border-b-0 cursor-pointer"
+                        className="w-full cursor-pointer border-b border-border/50 px-3.5 py-2.5 text-left text-sm text-text transition-colors last:border-b-0 hover:bg-surface"
                       >
                         {result.place_name}
                       </button>
@@ -217,27 +244,27 @@ export default function SettingsPanel() {
               <button
                 onClick={handleSave}
                 disabled={!isValid || saving}
-                className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer
+                className={`w-full rounded-xl py-3 text-sm font-semibold transition-all cursor-pointer
                             ${isValid && !saving
-                              ? 'bg-accent text-white hover:bg-accent/90'
+                              ? 'bg-accent text-white shadow-[0_10px_18px_-14px_rgba(227,28,75,0.75)] hover:bg-accent-strong'
                               : 'bg-surface text-muted/50 cursor-not-allowed'}`}
               >
                 {saving ? 'Recalculating...' : 'Update'}
               </button>
 
               {/* How it works */}
-              <div className="border-t border-border/60 pt-3">
+              <div className="border-t border-border/70 pt-3.5">
                 <button
                   onClick={() => setShowHow((v) => !v)}
-                  className="flex items-center gap-1.5 text-xs text-muted hover:text-text transition-colors cursor-pointer w-full"
+                  className="flex w-full cursor-pointer items-center gap-1.5 text-sm text-muted transition-colors hover:text-text"
                 >
                   <svg
-                    className={`size-3 transition-transform duration-200 ${showHow ? 'rotate-90' : ''}`}
+                    className={`size-3.5 transition-transform duration-200 ${showHow ? 'rotate-90' : ''}`}
                     fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                   </svg>
-                  <span className="font-medium">How it works</span>
+                  <span className="font-medium">How recommendations are calculated</span>
                 </button>
                 <AnimatePresence>
                   {showHow && (
@@ -248,7 +275,7 @@ export default function SettingsPanel() {
                       transition={{ duration: 0.2 }}
                       className="overflow-hidden"
                     >
-                      <div className="pt-2.5 space-y-2.5 text-[11px] text-muted leading-relaxed">
+                      <div className="space-y-2.5 pt-2.5 text-sm leading-relaxed text-muted">
                         <div>
                           <span className="font-semibold text-text">Astro lines</span> &mdash; Your
                           birth date and time determine where each planet's Midheaven, IC, Ascendant,
@@ -275,6 +302,74 @@ export default function SettingsPanel() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+              </div>
+
+              <section className="space-y-3 border-t border-border/70 pt-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted">Map guide</p>
+                  <p className="mt-1 text-sm text-muted">Colors and line styles used on the globe.</p>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Dot color = energy</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    {ENERGY_TIERS.map((tier) => (
+                      <div key={tier.id} className="flex items-center gap-2">
+                        <span
+                          className="size-2.5 shrink-0 rounded-full border border-white/80"
+                          style={{ backgroundColor: tier.color }}
+                        />
+                        <span className="text-xs text-text">
+                          {tier.label} <span className="text-muted">{tier.rangeLabel}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Line color = planet</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    {visiblePlanets.map((planet) => (
+                      <div key={planet} className="flex items-center gap-2">
+                        <span
+                          className="size-2.5 shrink-0 rounded-full border border-white/80"
+                          style={{ backgroundColor: PLANET_COLORS[planet] }}
+                        />
+                        <span className="text-xs text-text">{planet}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">Line style = angle</p>
+                  <div className="space-y-2">
+                    {LINE_TYPE_STYLES.map((style) => (
+                      <div key={style.lineType} className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-text">
+                            {style.lineType} · {style.label}
+                          </p>
+                          <p className="text-[11px] text-muted">{style.context}</p>
+                        </div>
+                        <svg className="shrink-0" width="52" height="8" viewBox="0 0 52 8" aria-hidden="true">
+                          <line
+                            x1="0"
+                            y1="4"
+                            x2="52"
+                            y2="4"
+                            stroke="#4B5563"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeDasharray={style.legendDasharray}
+                          />
+                        </svg>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
               </div>
             </div>
           </motion.div>

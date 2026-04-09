@@ -3,7 +3,6 @@ import { useStore } from '../store/useStore.ts'
 
 export default function SoulProfile() {
   const profile = useStore((s) => s.profile)
-  const birthData = useStore((s) => s.birthData)
   if (!profile) return null
 
   return (

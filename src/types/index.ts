@@ -66,6 +66,7 @@ export interface Retreat {
 }
 
 export type ViewState = 'onboarding' | 'loading' | 'globe' | 'detail'
+export type UtilityPanelState = 'settings' | 'insights' | null
 
 export interface AppState {
   view: ViewState
@@ -75,6 +76,7 @@ export interface AppState {
   cities: CityWithEnergy[]
   selectedCity: CityWithEnergy | null
   enabledPlanets: Set<Planet>
+  activeUtilityPanel: UtilityPanelState
 
   setView: (view: ViewState) => void
   setBirthData: (data: BirthData) => void
@@ -83,6 +85,7 @@ export interface AppState {
   setCities: (cities: CityWithEnergy[]) => void
   setSelectedCity: (city: CityWithEnergy | null) => void
   togglePlanet: (planet: Planet) => void
+  setActiveUtilityPanel: (panel: UtilityPanelState) => void
   highlightedCity: string | null          // "CityName|Country" key
   setHighlightedCity: (key: string | null) => void
 }

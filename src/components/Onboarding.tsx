@@ -3,28 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../store/useStore.ts'
 import { calcSoulProfile } from '../lib/numerology.ts'
 import { computeAstroLines } from '../lib/astrocartography.ts'
+import {
+  preloadBirthCityAutocomplete,
+  searchBirthCities,
+  type GeoResult,
+} from '../lib/birthCityAutocomplete.ts'
 import { loadCities } from '../data/loadCities.ts'
 import { enrichCitiesWithEnergy } from '../lib/geo.ts'
 import type { BirthData } from '../types/index.ts'
 
-interface GeoResult {
-  place_name: string
-  center: [number, number]
-}
-
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string
-const FALLBACK_CITIES: GeoResult[] = [
-  { place_name: 'New York, USA', center: [-74.006, 40.7128] },
-  { place_name: 'London, United Kingdom', center: [-0.1276, 51.5074] },
-  { place_name: 'Tokyo, Japan', center: [139.6917, 35.6895] },
-  { place_name: 'Sydney, Australia', center: [151.2093, -33.8688] },
-  { place_name: 'Paris, France', center: [2.3522, 48.8566] },
-  { place_name: 'Los Angeles, USA', center: [-118.2437, 34.0522] },
-  { place_name: 'Berlin, Germany', center: [13.405, 52.52] },
-  { place_name: 'Mumbai, India', center: [72.8777, 19.076] },
-  { place_name: 'Sao Paulo, Brazil', center: [-46.6333, -23.5505] },
-  { place_name: 'Cairo, Egypt', center: [31.2357, 30.0444] },
-]
 
 const STEP_COPY = {
   1: {
@@ -99,35 +87,28 @@ export default function Onboarding() {
   const [showBirthdayErrors, setShowBirthdayErrors] = useState(false)
   const [showSubmitErrors, setShowSubmitErrors] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchRequestIdRef = useRef(0)
 
   useEffect(() => {
-    loadCities()
+    preloadBirthCityAutocomplete()
   }, [])
 
   const searchCity = useCallback(async (query: string) => {
+    const requestId = ++searchRequestIdRef.current
+
     if (query.length < 2) {
       setCityResults([])
       return
     }
 
-    if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'your_mapbox_token_here') {
-      setCityResults(
-        FALLBACK_CITIES.filter((result) =>
-          result.place_name.toLowerCase().includes(query.toLowerCase()),
-        ),
-      )
-      return
-    }
+    const results = await searchBirthCities(query, {
+      limit: 5,
+      includeMapbox: true,
+      mapboxToken: MAPBOX_TOKEN,
+    })
 
-    try {
-      const encodedQuery = encodeURIComponent(query)
-      const res = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedQuery}.json?types=place&limit=5&access_token=${MAPBOX_TOKEN}`,
-      )
-      const data = await res.json()
-      setCityResults(data.features ?? [])
-    } catch {
-      setCityResults([])
+    if (requestId === searchRequestIdRef.current) {
+      setCityResults(results)
     }
   }, [])
 
@@ -210,23 +191,23 @@ export default function Onboarding() {
       transition={{ duration: 0.3 }}
     >
       <motion.div
-        className="w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[1.8rem] border border-black/5 bg-white p-6 shadow-[0_30px_80px_-45px_rgba(0,0,0,0.36)] md:max-h-[calc(100dvh-3rem)] md:p-9"
+        className="w-full max-w-[48rem] rounded-[2rem] border border-border/70 bg-white p-6 shadow-[0_36px_95px_-52px_rgba(15,23,42,0.42)] md:p-9"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28 }}
       >
-        <div className="mb-7 flex items-center justify-between gap-4 border-b border-border/70 pb-6">
+        <div className="mb-8 flex items-center justify-between gap-4 border-b border-border/70 pb-6">
           <div className="flex items-center gap-3">
-            <img src="/logo-512.png" alt="" className="size-10 rounded-lg" />
+            <img src="/logo-512.png" alt="" className="size-10 rounded-xl border border-border/70" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Soul Cartography</p>
-              <p className="text-sm text-text">Personal map setup</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.13em] text-muted">Soul Cartography</p>
+              <p className="text-sm font-medium text-text">Personal map setup</p>
             </div>
           </div>
-          <p className="text-sm font-medium tabular-nums text-muted">Step {step} of 3</p>
+          <p className="rounded-full border border-border/80 bg-surface-soft px-3 py-1.5 text-sm font-semibold tabular-nums text-muted">Step {step} of 3</p>
         </div>
 
-        <div className="mb-5 flex gap-2" aria-hidden="true">
+        <div className="mb-6 flex gap-2" aria-hidden="true">
           {[1, 2, 3].map((value) => (
             <span
               key={value}
@@ -243,17 +224,17 @@ export default function Onboarding() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.22 }}
           >
-            <h1 className="mb-2 font-serif text-4xl text-text md:text-[2.7rem]">{STEP_COPY[step].title}</h1>
-            <p className="mb-7 text-base leading-7 text-muted text-pretty">{STEP_COPY[step].description}</p>
+            <h1 className="mb-2 font-serif text-[2.2rem] leading-tight text-text md:text-[2.85rem]">{STEP_COPY[step].title}</h1>
+            <p className="mb-7 max-w-[42rem] text-base leading-7 text-muted text-pretty">{STEP_COPY[step].description}</p>
 
             {step === 1 ? (
               <div className="space-y-6">
-                <div className="rounded-2xl border border-border/80 bg-surface/55 px-4 py-4">
+                <div className="rounded-2xl border border-border/80 bg-surface-soft px-5 py-5">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted">How it works</p>
                   <ul className="space-y-1.5">
                     {HOW_IT_WORKS.map((item) => (
-                      <li key={item} className="flex items-start gap-2.5 text-sm text-text/90">
-                        <span className="mt-1 h-2 w-2 rounded-full bg-accent/75" aria-hidden="true" />
+                      <li key={item} className="flex items-start gap-2.5 text-sm leading-relaxed text-text/90">
+                        <span className="mt-1.5 h-2 w-2 rounded-full bg-accent/80" aria-hidden="true" />
                         <span>{item}</span>
                       </li>
                     ))}
@@ -265,7 +246,7 @@ export default function Onboarding() {
                 <button
                   type="button"
                   onClick={handleStartSetup}
-                  className="w-full rounded-xl bg-accent px-5 py-3.5 text-base font-semibold text-white transition-colors hover:bg-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                  className="w-full rounded-xl bg-accent px-5 py-3.5 text-base font-semibold text-white shadow-[0_16px_30px_-24px_rgba(227,28,75,0.85)] transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                 >
                   Start setup
                 </button>
@@ -284,7 +265,7 @@ export default function Onboarding() {
                       value={birthDay}
                       onChange={(event) => setBirthDay(digitsOnly(event.target.value))}
                       aria-invalid={showBirthdayErrors && Boolean(birthdayError)}
-                      className="w-full rounded-xl border border-border bg-bg px-3 py-3 text-center text-base text-text placeholder:text-muted/55 focus:border-text focus:outline-none focus:ring-1 focus:ring-text/15"
+                      className="w-full rounded-xl border border-border bg-white px-3 py-3 text-center text-base text-text placeholder:text-muted/55 focus:border-border-strong focus:outline-none"
                     />
                     <input
                       aria-label="Birth month"
@@ -295,7 +276,7 @@ export default function Onboarding() {
                       value={birthMonth}
                       onChange={(event) => setBirthMonth(digitsOnly(event.target.value))}
                       aria-invalid={showBirthdayErrors && Boolean(birthdayError)}
-                      className="w-full rounded-xl border border-border bg-bg px-3 py-3 text-center text-base text-text placeholder:text-muted/55 focus:border-text focus:outline-none focus:ring-1 focus:ring-text/15"
+                      className="w-full rounded-xl border border-border bg-white px-3 py-3 text-center text-base text-text placeholder:text-muted/55 focus:border-border-strong focus:outline-none"
                     />
                     <input
                       aria-label="Birth year"
@@ -306,7 +287,7 @@ export default function Onboarding() {
                       value={birthYear}
                       onChange={(event) => setBirthYear(digitsOnly(event.target.value))}
                       aria-invalid={showBirthdayErrors && Boolean(birthdayError)}
-                      className="w-full rounded-xl border border-border bg-bg px-3 py-3 text-center text-base text-text placeholder:text-muted/55 focus:border-text focus:outline-none focus:ring-1 focus:ring-text/15"
+                      className="w-full rounded-xl border border-border bg-white px-3 py-3 text-center text-base text-text placeholder:text-muted/55 focus:border-border-strong focus:outline-none"
                     />
                   </div>
                   <p className="mt-2 text-sm text-muted">Example: 27 03 1992</p>
@@ -315,7 +296,7 @@ export default function Onboarding() {
                   )}
                 </fieldset>
 
-                <div className="rounded-2xl border border-border/80 bg-surface/55 px-4 py-3.5 text-sm text-muted">
+                <div className="rounded-2xl border border-border/80 bg-surface-soft px-4 py-3.5 text-sm text-muted">
                   You can update these details anytime from Settings.
                 </div>
 
@@ -323,14 +304,14 @@ export default function Onboarding() {
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="rounded-xl border border-border px-5 py-3.5 text-sm font-medium text-text transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:w-[140px]"
+                    className="rounded-xl border border-border px-5 py-3.5 text-sm font-medium text-text transition-colors hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:w-[140px]"
                   >
                     Back
                   </button>
                   <button
                     type="button"
                     onClick={handleContinueBirthday}
-                    className="flex-1 rounded-xl bg-accent px-5 py-3.5 text-base font-semibold text-white transition-colors hover:bg-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                    className="flex-1 rounded-xl bg-accent px-5 py-3.5 text-base font-semibold text-white shadow-[0_16px_30px_-24px_rgba(227,28,75,0.85)] transition-colors hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                   >
                     Continue
                   </button>
@@ -348,7 +329,7 @@ export default function Onboarding() {
                     value={time}
                     onChange={(event) => setTime(event.target.value)}
                     disabled={!timeKnown}
-                    className={`w-full rounded-xl border bg-bg px-4 py-3.5 text-base text-text transition-colors focus:border-text focus:outline-none focus:ring-1 focus:ring-text/15 ${
+                    className={`w-full rounded-xl border bg-white px-4 py-3.5 text-base text-text transition-colors focus:border-border-strong focus:outline-none ${
                       !timeKnown
                         ? 'cursor-not-allowed border-border/70 text-muted/60'
                         : 'border-border'
@@ -370,28 +351,34 @@ export default function Onboarding() {
                   <label htmlFor="birth-city" className="mb-2.5 block text-sm font-medium text-text">
                     Birth city
                   </label>
-                  <input
-                    id="birth-city"
-                    type="text"
-                    value={cityQuery}
-                    onChange={(event) => {
-                      setCityQuery(event.target.value)
-                      setSelectedGeo(null)
+                   <input
+                     id="birth-city"
+                     type="text"
+                     name="birth-city-search"
+                     value={cityQuery}
+                     autoComplete="off"
+                     autoCorrect="off"
+                     autoCapitalize="none"
+                     spellCheck={false}
+                     aria-autocomplete="list"
+                     onChange={(event) => {
+                       setCityQuery(event.target.value)
+                       setSelectedGeo(null)
                       setShowResults(true)
                     }}
-                    onFocus={() => setShowResults(true)}
-                    placeholder="Search for your birth city"
-                    className="w-full rounded-xl border border-border bg-bg px-4 py-3.5 text-base text-text placeholder:text-muted/55 transition-colors focus:border-text focus:outline-none focus:ring-1 focus:ring-text/15"
+                   onFocus={() => setShowResults(true)}
+                   placeholder="Search for your birth city"
+                    className="w-full rounded-xl border border-border bg-white px-4 py-3.5 text-base text-text placeholder:text-muted/55 transition-colors focus:border-border-strong focus:outline-none"
                   />
 
                   {showResults && cityResults.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+                    <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-border bg-white shadow-[0_18px_32px_-20px_rgba(17,24,39,0.4)]">
                       {cityResults.map((result, index) => (
                         <button
                           key={`${result.place_name}-${index}`}
                           type="button"
                           onClick={() => handleCitySelect(result)}
-                          className="flex w-full items-center gap-3 border-b border-border/50 px-4 py-3 text-left text-sm text-text transition-colors last:border-b-0 hover:bg-surface"
+                          className="flex w-full items-center gap-3 border-b border-border/50 px-4 py-3 text-left text-sm text-text transition-colors last:border-b-0 hover:bg-surface-soft"
                         >
                           <span className="h-2.5 w-2.5 rounded-full bg-accent/70" aria-hidden="true" />
                           {result.place_name}
@@ -407,7 +394,7 @@ export default function Onboarding() {
                   <button
                     type="button"
                     onClick={() => setStep(2)}
-                    className="rounded-xl border border-border px-5 py-3.5 text-sm font-medium text-text transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:w-[140px]"
+                    className="rounded-xl border border-border px-5 py-3.5 text-sm font-medium text-text transition-colors hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:w-[140px]"
                   >
                     Back
                   </button>
@@ -417,8 +404,8 @@ export default function Onboarding() {
                     disabled={!canSubmit}
                     className={`flex-1 rounded-xl py-3.5 text-base font-semibold transition-colors ${
                       canSubmit
-                        ? 'bg-accent text-white hover:bg-accent/90'
-                        : 'cursor-not-allowed border border-border bg-surface text-muted/55'
+                        ? 'bg-accent text-white shadow-[0_16px_30px_-24px_rgba(227,28,75,0.85)] hover:bg-accent-strong'
+                        : 'cursor-not-allowed border border-border bg-surface-soft text-muted/55'
                     }`}
                     whileTap={canSubmit ? { scale: 0.99 } : {}}
                   >

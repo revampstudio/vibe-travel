@@ -1,7 +1,7 @@
 import { useRef, useCallback, useMemo, useEffect, useState } from 'react'
-import Map, { Source, Layer, Popup } from 'react-map-gl/mapbox'
+import MapboxMap, { Source, Layer, Popup, AttributionControl } from 'react-map-gl/mapbox'
 import type { MapRef, MapMouseEvent } from 'react-map-gl/mapbox'
-import type { LayerSpecification } from 'mapbox-gl'
+import type { LayerSpecification, MapboxGeoJSONFeature } from 'mapbox-gl'
 import { useStore } from '../store/useStore.ts'
 import { declutterCities } from '../lib/geo.ts'
 import type { CityWithEnergy } from '../types/index.ts'
@@ -16,9 +16,33 @@ interface HoveredCity {
   lineCount: number
 }
 
+interface RenderableCity extends CityWithEnergy {
+  cityKey: string
+  sourceRank: number
+  activeLineCount: number
+  priorityScore: number
+}
+
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string
 
+const MAPBOX_PLACEHOLDER_TOKENS = new Set([
+  '',
+  'undefined',
+  'null',
+  'your_mapbox_token_here',
+  'your_mapbox_token',
+  '<your_mapbox_token_here>',
+])
+
+const isMapboxTokenValid = (token: string | undefined) => {
+  if (!token) return false
+  const normalized = token.trim().toLowerCase()
+  if (MAPBOX_PLACEHOLDER_TOKENS.has(normalized)) return false
+  return true
+}
+
 const STANDARD_STYLE = 'mapbox://styles/mapbox/standard'
+const CITY_DECLUTTER_DEGREES = 1.8
 const MAJOR_CITY_PRIORITY_WINDOW = 1200
 const MAJOR_CITY_PRIORITY_WEIGHT = 0.2
 const ENERGY_COLOR_EXPRESSION: unknown[] = [
@@ -42,12 +66,11 @@ export default function GlobeMap() {
   const setView = useStore((s) => s.setView)
   const selectedCity = useStore((s) => s.selectedCity)
   const highlightedCity = useStore((s) => s.highlightedCity)
-  const setHighlightedCity = useStore((s) => s.setHighlightedCity)
   const [mapLoaded, setMapLoaded] = useState(false)
   const [hoveredCity, setHoveredCity] = useState<HoveredCity | null>(null)
-  const hoveredIdRef = useRef<number | null>(null)
-  const externalHighlightIdRef = useRef<number | null>(null)
-  const [zoom, setZoom] = useState(2)
+  const hoveredFeatureIdRef = useRef<string | null>(null)
+  const externalHighlightFeatureIdRef = useRef<string | null>(null)
+  const hasValidMapboxToken = isMapboxTokenValid(MAPBOX_TOKEN)
 
   const filteredLines = useMemo(
     () => astroLines.filter((l) => enabledPlanets.has(l.planet)),
@@ -71,42 +94,63 @@ export default function GlobeMap() {
     })),
   }), [filteredLines])
 
-  const visibleCities = useMemo(() => {
-    const withLines = cities
-      .map((city, sourceRank) => ({ ...city, sourceRank }))
-      .filter((c) => c.activeLines.some((l) => enabledPlanets.has(l.planet)))
-      .sort((a, b) => b.energyScore - a.energyScore)
-    // Scale declutter distance with zoom: 3° at globe, shrinks as you zoom in
-    const minDeg = Math.max(0.1, 3 / Math.pow(2, Math.max(0, zoom - 2)))
-    const prominence = (sourceRank: number) =>
+  const renderableCities = useMemo(() => {
+    const prominence = (sourceRank: number) => (
       (1 - Math.min(sourceRank, MAJOR_CITY_PRIORITY_WINDOW) / MAJOR_CITY_PRIORITY_WINDOW)
       * MAJOR_CITY_PRIORITY_WEIGHT
+    )
 
+    const withLines: RenderableCity[] = []
+    for (let sourceRank = 0; sourceRank < cities.length; sourceRank += 1) {
+      const city = cities[sourceRank]
+      let activeLineCount = 0
+      for (const line of city.activeLines) {
+        if (enabledPlanets.has(line.planet)) activeLineCount += 1
+      }
+      if (activeLineCount === 0) continue
+      withLines.push({
+        ...city,
+        cityKey: `${city.name}|${city.country}`,
+        sourceRank,
+        activeLineCount,
+        priorityScore: city.energyScore + prominence(sourceRank),
+      })
+    }
+
+    withLines.sort((a, b) => b.energyScore - a.energyScore)
     return declutterCities(
       withLines,
-      minDeg,
-      (city) => city.energyScore + prominence(city.sourceRank),
+      CITY_DECLUTTER_DEGREES,
+      (city) => city.priorityScore,
     )
-  }, [cities, enabledPlanets, zoom])
+  }, [cities, enabledPlanets])
+
+  const visibleCityByKey = useMemo(() => {
+    const byKey = new Map<string, RenderableCity>()
+    for (const city of renderableCities) {
+      byKey.set(city.cityKey, city)
+    }
+    return byKey
+  }, [renderableCities])
 
   const citiesGeoJSON = useMemo(() => ({
     type: 'FeatureCollection' as const,
-    features: visibleCities.map((city, i) => ({
+    features: renderableCities.map((city) => ({
       type: 'Feature' as const,
-      id: i,
+      id: city.cityKey,
       properties: {
-        id: i,
+        cityKey: city.cityKey,
         name: city.name,
         country: city.country,
         energyScore: city.energyScore,
-        lineCount: city.activeLines.filter(l => enabledPlanets.has(l.planet)).length,
+        lineCount: city.activeLineCount,
       },
       geometry: {
         type: 'Point' as const,
         coordinates: [city.lng, city.lat],
       },
     })),
-  }), [visibleCities, enabledPlanets])
+  }), [renderableCities])
 
   const internalClickRef = useRef(false)
 
@@ -151,6 +195,24 @@ export default function GlobeMap() {
     }
   }, [selectedCity, mapLoaded])
 
+  const getCityFeature = useCallback((e: MapMouseEvent): MapboxGeoJSONFeature | null => {
+    const features = (e.features ?? []) as MapboxGeoJSONFeature[]
+    return (
+      features.find((feature) => feature.layer?.id === 'city-circles')
+      ?? features.find((feature) => feature.layer?.id === 'city-labels')
+      ?? null
+    )
+  }, [])
+
+  const getFeatureKey = useCallback((feature: MapboxGeoJSONFeature | null): string | null => {
+    if (!feature) return null
+    if (typeof feature.id === 'string' || typeof feature.id === 'number') {
+      return String(feature.id)
+    }
+    const key = feature.properties?.cityKey
+    return typeof key === 'string' ? key : null
+  }, [])
+
   // Sync highlightedCity (from sidebar hover) → Mapbox feature-state
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return
@@ -158,100 +220,80 @@ export default function GlobeMap() {
     if (!map.getSource('cities')) return
 
     // Clear previous external highlight
-    if (externalHighlightIdRef.current !== null) {
+    if (externalHighlightFeatureIdRef.current !== null) {
       map.setFeatureState(
-        { source: 'cities', id: externalHighlightIdRef.current },
-        { hover: false },
+        { source: 'cities', id: externalHighlightFeatureIdRef.current },
+        { externallyHighlighted: false },
       )
-      externalHighlightIdRef.current = null
+      externalHighlightFeatureIdRef.current = null
     }
 
-    if (highlightedCity) {
-      const [name, country] = highlightedCity.split('|')
-      const idx = visibleCities.findIndex(
-        (c) => c.name === name && c.country === country,
+    if (highlightedCity && visibleCityByKey.has(highlightedCity)) {
+      externalHighlightFeatureIdRef.current = highlightedCity
+      map.setFeatureState(
+        { source: 'cities', id: highlightedCity },
+        { externallyHighlighted: true },
       )
-      if (idx !== -1) {
-        // Don't double-highlight if user's mouse is already on the same feature
-        if (hoveredIdRef.current !== idx) {
-          externalHighlightIdRef.current = idx
-          map.setFeatureState(
-            { source: 'cities', id: idx },
-            { hover: true },
-          )
-        }
-      }
     }
-  }, [highlightedCity, visibleCities, mapLoaded])
+  }, [highlightedCity, visibleCityByKey, mapLoaded])
 
   const handleMouseMove = useCallback((e: MapMouseEvent) => {
     if (!mapRef.current) return
     const map = mapRef.current.getMap()
 
-    // Layers may not exist yet during style loading
-    if (!map.getLayer('city-circles')) return
+    const feature = getCityFeature(e)
+    const featureKey = getFeatureKey(feature)
 
-    const circleFeatures = mapRef.current.queryRenderedFeatures(e.point, {
-      layers: ['city-circles'],
-    })
-    const labelFeatures = circleFeatures.length === 0 && map.getLayer('city-labels')
-      ? mapRef.current.queryRenderedFeatures(e.point, {
-        layers: ['city-labels'],
-      })
-      : []
-    const feature = circleFeatures[0] ?? labelFeatures[0]
-
-    // Clear previous hover state
-    if (hoveredIdRef.current !== null) {
-      map.setFeatureState(
-        { source: 'cities', id: hoveredIdRef.current },
-        { hover: false },
-      )
-      hoveredIdRef.current = null
-    }
-
-    if (feature) {
-      const props = feature.properties
-      if (props) {
-        const featureId = props.id as number
-        hoveredIdRef.current = featureId
+    if (!featureKey) {
+      if (hoveredFeatureIdRef.current !== null) {
         map.setFeatureState(
-          { source: 'cities', id: featureId },
-          { hover: true },
+          { source: 'cities', id: hoveredFeatureIdRef.current },
+          { hovered: false },
         )
-
-        const city = visibleCities.find(
-          (c) => c.name === props.name && c.country === props.country,
-        )
-        if (city) {
-          setHoveredCity({
-            name: city.name,
-            country: city.country,
-            lng: city.lng,
-            lat: city.lat,
-            energyScore: city.energyScore,
-            lineCount: props.lineCount as number,
-          })
-          setHighlightedCity(`${city.name}|${city.country}`)
-        }
+        hoveredFeatureIdRef.current = null
       }
-    } else {
       setHoveredCity(null)
-      setHighlightedCity(null)
+      return
     }
-  }, [visibleCities, setHighlightedCity])
+
+    if (hoveredFeatureIdRef.current !== featureKey) {
+      if (hoveredFeatureIdRef.current !== null) {
+        map.setFeatureState(
+          { source: 'cities', id: hoveredFeatureIdRef.current },
+          { hovered: false },
+        )
+      }
+
+      hoveredFeatureIdRef.current = featureKey
+      map.setFeatureState(
+        { source: 'cities', id: featureKey },
+        { hovered: true },
+      )
+
+      const city = visibleCityByKey.get(featureKey)
+      if (city) {
+        setHoveredCity({
+          name: city.name,
+          country: city.country,
+          lng: city.lng,
+          lat: city.lat,
+          energyScore: city.energyScore,
+          lineCount: city.activeLineCount,
+        })
+      }
+    }
+  }, [getCityFeature, getFeatureKey, visibleCityByKey])
 
   const handleMouseLeave = useCallback(() => {
-    if (hoveredIdRef.current !== null && mapRef.current) {
+    if (hoveredFeatureIdRef.current !== null && mapRef.current) {
       mapRef.current.getMap().setFeatureState(
-        { source: 'cities', id: hoveredIdRef.current },
-        { hover: false },
+        { source: 'cities', id: hoveredFeatureIdRef.current },
+        { hovered: false },
       )
-      hoveredIdRef.current = null
+      hoveredFeatureIdRef.current = null
     }
     setHoveredCity(null)
-    setHighlightedCity(null)
-  }, [setHighlightedCity])
+  }, [])
 
   const lineLayer = {
     'line-width': [
@@ -284,7 +326,10 @@ export default function GlobeMap() {
     paint: {
       'circle-radius': [
         'case',
-        ['boolean', ['feature-state', 'hover'], false],
+        ['any',
+          ['boolean', ['feature-state', 'hovered'], false],
+          ['boolean', ['feature-state', 'externallyHighlighted'], false],
+        ],
         ['interpolate', ['linear'], ['get', 'lineCount'],
           0, 28,
           3, 40,
@@ -299,7 +344,10 @@ export default function GlobeMap() {
       'circle-color': ENERGY_COLOR_EXPRESSION,
       'circle-opacity': [
         'case',
-        ['boolean', ['feature-state', 'hover'], false],
+        ['any',
+          ['boolean', ['feature-state', 'hovered'], false],
+          ['boolean', ['feature-state', 'externallyHighlighted'], false],
+        ],
         0.4,
         0.2,
       ],
@@ -315,7 +363,10 @@ export default function GlobeMap() {
     paint: {
       'circle-radius': [
         'case',
-        ['boolean', ['feature-state', 'hover'], false],
+        ['any',
+          ['boolean', ['feature-state', 'hovered'], false],
+          ['boolean', ['feature-state', 'externallyHighlighted'], false],
+        ],
         ['interpolate', ['linear'], ['get', 'lineCount'],
           0, 8,
           3, 12,
@@ -332,7 +383,10 @@ export default function GlobeMap() {
       'circle-stroke-color': '#ffffff',
       'circle-stroke-width': [
         'case',
-        ['boolean', ['feature-state', 'hover'], false],
+        ['any',
+          ['boolean', ['feature-state', 'hovered'], false],
+          ['boolean', ['feature-state', 'externallyHighlighted'], false],
+        ],
         3,
         2,
       ],
@@ -364,8 +418,31 @@ export default function GlobeMap() {
     },
   } as unknown as LayerSpecification
 
+  if (!hasValidMapboxToken) {
+    return (
+      <div className="relative h-full w-full overflow-hidden bg-gradient-to-br from-slate-100 via-white to-slate-100">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,56,92,0.08),transparent_35%),radial-gradient(circle_at_85%_80%,rgba(108,92,231,0.08),transparent_32%)]" />
+        <div className="relative z-10 flex h-full items-center justify-center p-6">
+          <div className="max-w-xl rounded-3xl border border-border/85 bg-white/90 p-8 text-center shadow-[0_24px_50px_-30px_rgba(17,24,39,0.4)] backdrop-blur-sm">
+            <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/15 bg-accent-light text-accent-strong">
+              🌍
+            </div>
+            <h2 className="text-xl font-semibold text-text">Map view unavailable</h2>
+            <p className="mt-3 text-sm leading-relaxed text-muted">
+              A valid Mapbox access token is required to render the interactive globe.
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              Add <code className="rounded bg-surface-soft px-1.5 py-0.5 font-semibold text-text">VITE_MAPBOX_TOKEN</code> to your local
+              environment, then restart the dev server.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <Map
+    <MapboxMap
       ref={mapRef}
       mapboxAccessToken={MAPBOX_TOKEN}
       initialViewState={{
@@ -378,35 +455,17 @@ export default function GlobeMap() {
       style={{ width: '100%', height: '100%' }}
       mapStyle={STANDARD_STYLE}
       projection={{ name: 'globe' }}
+      attributionControl={false}
+      logoPosition="bottom-left"
       onLoad={() => setMapLoaded(true)}
-      onZoom={(e) => {
-        // Round to nearest 0.5 to avoid excessive recalculations
-        const z = Math.round(e.viewState.zoom * 2) / 2
-        setZoom((prev) => prev === z ? prev : z)
-      }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
       onClick={(e: MapMouseEvent) => {
-        if (!mapRef.current) return
-        if (!mapRef.current.getMap().getLayer('city-circles')) return
-        const circleFeatures = mapRef.current.queryRenderedFeatures(e.point, {
-          layers: ['city-circles'],
-        })
-        const labelFeatures = circleFeatures.length === 0 && mapRef.current.getMap().getLayer('city-labels')
-          ? mapRef.current.queryRenderedFeatures(e.point, {
-            layers: ['city-labels'],
-          })
-          : []
-        const feature = circleFeatures[0] ?? labelFeatures[0]
-        if (feature) {
-          const props = feature.properties
-          if (props) {
-            const city = visibleCities.find(
-              (c) => c.name === props.name && c.country === props.country,
-            )
-            if (city) handleCityClick(city)
-          }
-        }
+        const feature = getCityFeature(e)
+        const featureKey = getFeatureKey(feature)
+        if (!featureKey) return
+        const city = visibleCityByKey.get(featureKey)
+        if (city) handleCityClick(city)
       }}
       interactiveLayerIds={['city-circles', 'city-labels']}
       cursor={hoveredCity ? 'pointer' : 'grab'}
@@ -445,6 +504,8 @@ export default function GlobeMap() {
         </>
       )}
 
+      <AttributionControl position="bottom-left" compact />
+
       {hoveredCity && (
         <Popup
           longitude={hoveredCity.lng}
@@ -454,34 +515,24 @@ export default function GlobeMap() {
           closeOnClick={false}
           className="city-hover-popup"
         >
-          <div style={{
-            padding: '8px 12px',
-            fontFamily: 'system-ui, sans-serif',
-            lineHeight: 1.4,
-          }}>
-            <div style={{ fontWeight: 600, fontSize: 14, color: '#fff' }}>
+          <div className="min-w-[13rem] px-3.5 py-3 font-sans leading-relaxed">
+            <div className="text-[15px] font-semibold text-text">
               {hoveredCity.name}
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginBottom: 6 }}>
+            <div className="mb-2 text-xs text-muted">
               {hoveredCity.country}
             </div>
-            <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
-              <div>
-                <span style={{ color: 'rgba(255,255,255,0.5)' }}>Energy </span>
-                <span style={{ color: '#FF385C', fontWeight: 600 }}>
-                  {hoveredCity.energyScore.toFixed(1)}
-                </span>
-              </div>
-              <div>
-                <span style={{ color: 'rgba(255,255,255,0.5)' }}>Lines </span>
-                <span style={{ color: '#FF385C', fontWeight: 600 }}>
-                  {hoveredCity.lineCount}
-                </span>
-              </div>
+            <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
+              <span className="rounded-full border border-accent/15 bg-accent-light px-2.5 py-1 text-accent-strong">
+                Energy {hoveredCity.energyScore.toFixed(1)}
+              </span>
+              <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-text">
+                {hoveredCity.lineCount} lines
+              </span>
             </div>
           </div>
         </Popup>
       )}
-    </Map>
+    </MapboxMap>
   )
 }

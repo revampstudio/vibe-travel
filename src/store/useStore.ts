@@ -34,6 +34,7 @@ export const useStore = create<AppState>((set) => ({
   cities: [],
   selectedCity: null,
   enabledPlanets: new Set<Planet>(['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn']),
+  activeUtilityPanel: null,
   highlightedCity: null,
 
   setView: (view) => set({ view }),
@@ -45,6 +46,7 @@ export const useStore = create<AppState>((set) => ({
   setAstroLines: (astroLines) => set({ astroLines }),
   setCities: (cities) => set({ cities }),
   setSelectedCity: (selectedCity) => set({ selectedCity }),
+  setActiveUtilityPanel: (activeUtilityPanel) => set({ activeUtilityPanel }),
   togglePlanet: (planet) =>
     set((state) => {
       const next = new Set(state.enabledPlanets)
