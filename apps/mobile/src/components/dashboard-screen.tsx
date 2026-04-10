@@ -582,21 +582,6 @@ function SettingsDrawer({
               ))}
             </View>
         </View>
-
-        <Pressable
-          style={styles.startOverLink}
-          onPress={() => {
-            setBirthData(null)
-            setProfile(null)
-            setAstroLines([])
-            setCities([])
-            setSelectedCity(null)
-            setView('onboarding')
-            onClose()
-          }}
-        >
-          <Text style={styles.startOverLinkText}>Start over</Text>
-        </Pressable>
       </ScrollView>
     </Drawer>
   )
@@ -1327,17 +1312,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
-  },
-  startOverLink: {
-    alignSelf: 'center',
-    paddingVertical: 8,
-  },
-  startOverLinkText: {
-    fontFamily: fonts.sans,
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-    textDecorationLine: 'underline',
   },
   sectionTitleSmall: {
     fontFamily: fonts.serif,
