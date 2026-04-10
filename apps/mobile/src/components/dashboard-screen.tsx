@@ -55,24 +55,6 @@ const ADVISORY_STYLES: Record<1 | 2 | 3 | 4, { panel: string, badgeBg: string, b
   4: { panel: '#FFF0F0', badgeBg: '#FEE4E2', badgeText: '#B42318' },
 }
 
-const SUGGESTED_EXPERIENCES = [
-  {
-    title: 'Architectural Morning Walk',
-    desc: 'A calm design-led route through signature streets and local landmarks.',
-    tag: 'Culture',
-  },
-  {
-    title: 'Sunrise Movement Session',
-    desc: 'Breathwork and light movement in a scenic open-air setting.',
-    tag: 'Wellness',
-  },
-  {
-    title: 'Regional Tasting Evening',
-    desc: 'A chef-led introduction to the place through local ingredients.',
-    tag: 'Food',
-  },
-] as const
-
 const INSIGHT_METHOD = 'Theme labels are based on Pythagorean numerology, then blended with your strongest map lines.'
 
 type AdvisoryLevelMap = Record<string, 1 | 2 | 3 | 4 | null>
@@ -985,19 +967,6 @@ function CityDrawer({
             </View>
           ))}
         </View>
-
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitleSmall}>Suggested experiences</Text>
-          {SUGGESTED_EXPERIENCES.map((item) => (
-            <View key={item.title} style={styles.experienceCard}>
-              <View style={styles.experienceTag}>
-                <Text style={styles.experienceTagText}>{item.tag}</Text>
-              </View>
-              <Text style={styles.experienceTitle}>{item.title}</Text>
-              <Text style={styles.sectionCopySmall}>{item.desc}</Text>
-            </View>
-          ))}
-        </View>
       </ScrollView>
     </Drawer>
   )
@@ -1697,32 +1666,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fonts.sans,
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  experienceCard: {
-    gap: 8,
-    borderRadius: 18,
-    padding: 14,
-    backgroundColor: colors.surfaceSoft,
-  },
-  experienceTag: {
-    alignSelf: 'flex-start',
-    borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: colors.accentSoft,
-  },
-  experienceTagText: {
-    fontFamily: fonts.sans,
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.accentStrong,
-  },
-  experienceTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 22,
-    lineHeight: 26,
     fontWeight: '700',
     color: colors.text,
   },
