@@ -16,7 +16,7 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string
 
 const STEP_COPY = {
   1: {
-    title: 'How Soul Cartography works',
+    title: 'How Vibe Travel works',
     description: 'A quick overview before we build your personal map.',
   },
   2: {
@@ -200,7 +200,7 @@ export default function Onboarding() {
           <div className="flex items-center gap-3">
             <img src="/logo-512.png" alt="" className="size-10 rounded-xl border border-border/70" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.13em] text-muted">Soul Cartography</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.13em] text-muted">Vibe Travel</p>
               <p className="text-sm font-medium text-text">Personal map setup</p>
             </div>
           </div>

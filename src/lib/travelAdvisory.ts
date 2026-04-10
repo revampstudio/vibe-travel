@@ -16,7 +16,7 @@ export type TravelAdvisoryLookup =
   | { status: 'not_found' }
   | { status: 'unavailable' }
 
-const DEFAULT_TRAVEL_API_BASE = 'https://soul-cartography-advisory-api.mitchellrbenjamin.workers.dev'
+const DEFAULT_TRAVEL_API_BASE = 'https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev'
 const ENDPOINT_PATH = '/api/v1/travel-advisory'
 const SUCCESS_CACHE_TTL_MS = 15 * 60 * 1000
 const ERROR_CACHE_TTL_MS = 60 * 1000

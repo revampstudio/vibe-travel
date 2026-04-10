@@ -1,0 +1,48 @@
+import type { Planet, LineType } from '../types/index'
+
+const INTERPRETATIONS: Record<string, string> = {
+  'Sun-MC': 'Your Sun on the Midheaven here illuminates your public identity and career potential. This is a power location for professional recognition and stepping into leadership.',
+  'Sun-IC': 'Sun on the IC connects you to a deep sense of belonging. This place feels like a spiritual home - nurturing your roots and inner foundation.',
+  'Sun-ASC': 'With your Sun rising here, your vitality and confidence are amplified. People see the real you - radiant, magnetic, and fully expressed.',
+  'Sun-DSC': 'Sun on the Descendant draws powerful partnerships to you. Expect significant relationships - romantic, creative, or business - to form here.',
+  'Moon-MC': 'Your Moon on the Midheaven makes you emotionally visible here. This is a place where your intuitive gifts are recognized publicly.',
+  'Moon-IC': 'Moon on the IC creates profound emotional security. This location feels like coming home to your soul - deeply comforting and restorative.',
+  'Moon-ASC': 'With your Moon rising here, emotions flow freely and your sensitivity becomes your superpower. Deep connections form effortlessly.',
+  'Moon-DSC': 'Moon on the Descendant attracts nurturing, emotionally rich relationships. This place is ideal for finding soul family.',
+  'Mercury-MC': 'Mercury on the Midheaven sharpens your communication here. Ideal for writing, teaching, speaking, and intellectual pursuits in your career.',
+  'Mercury-IC': 'Mercury on the IC stimulates inner dialogue and ancestral wisdom. A place for journaling, therapy, and understanding your story.',
+  'Mercury-ASC': 'Mercury rising here makes you articulate and mentally agile. People are drawn to your ideas and your ability to connect dots.',
+  'Mercury-DSC': 'Mercury on the Descendant attracts stimulating conversations and intellectual partnerships. Great for collaborative learning.',
+  'Venus-MC': 'Venus on the Midheaven bathes your public life in beauty and charm. Creative careers, luxury, and aesthetic pursuits flourish here.',
+  'Venus-IC': 'Venus on the IC creates a love nest energy. This place beautifies your inner world and attracts domestic harmony.',
+  'Venus-ASC': 'With Venus rising, you radiate beauty and attraction. Love finds you easily here - this is one of the most romantic locations on your map.',
+  'Venus-DSC': 'Venus on the Descendant is the ultimate relationship line. Deep romantic connections, artistic collaborations, and soulmate encounters await.',
+  'Mars-MC': 'Mars on the Midheaven fuels ambition and drive. This is a power location for entrepreneurship, competition, and bold career moves.',
+  'Mars-IC': 'Mars on the IC stirs deep passions and can activate ancestral healing. Intense but transformative inner work happens here.',
+  'Mars-ASC': 'Mars rising gives you fierce energy and courage. You feel unstoppable here - perfect for physical challenges and bold new ventures.',
+  'Mars-DSC': 'Mars on the Descendant brings passionate encounters. Relationships here are intense, dynamic, and transformative.',
+  'Jupiter-MC': 'Jupiter on the Midheaven expands your horizons of success. This is your luckiest career location - abundance, recognition, and growth abound.',
+  'Jupiter-IC': 'Jupiter on the IC brings spiritual expansion and a sense of divine protection. This place nourishes your faith and inner abundance.',
+  'Jupiter-ASC': 'Jupiter rising magnifies your optimism and charisma. Opportunities fall into your lap here - travel, education, and personal growth flourish.',
+  'Jupiter-DSC': 'Jupiter on the Descendant attracts generous, expansive partnerships. This is a place of beneficial alliances and shared adventures.',
+  'Saturn-MC': 'Saturn on the Midheaven demands discipline but rewards with lasting achievement. This is a location for building your legacy through hard work.',
+  'Saturn-IC': 'Saturn on the IC brings karmic lessons around home and family. Deep structural healing is possible here, though it requires patience.',
+  'Saturn-ASC': 'Saturn rising here brings gravitas and authority to your presence. You\'re taken seriously - but must guard against self-limitation.',
+  'Saturn-DSC': 'Saturn on the Descendant attracts mature, committed partnerships. Relationships here are serious and built for the long haul.',
+  'Uranus-MC': 'Uranus on the Midheaven electrifies your career path with innovation. Expect sudden breakthroughs and unconventional success.',
+  'Uranus-IC': 'Uranus on the IC shakes up your foundations in liberating ways. A place of awakening and breaking free from old patterns.',
+  'Uranus-ASC': 'Uranus rising makes you a beacon of originality. You feel free to be your most authentic, eccentric self here.',
+  'Uranus-DSC': 'Uranus on the Descendant attracts exciting, unpredictable relationships. Soul connections that change your life appear suddenly.',
+  'Neptune-MC': 'Neptune on the Midheaven dissolves boundaries in your public life. Ideal for spiritual leadership, art, music, and healing careers.',
+  'Neptune-IC': 'Neptune on the IC deepens your connection to the unseen world. Profound spiritual experiences and psychic sensitivity arise here.',
+  'Neptune-ASC': 'Neptune rising gives you an ethereal, magnetic presence. You appear dreamlike to others - inspiring but sometimes misunderstood.',
+  'Neptune-DSC': 'Neptune on the Descendant attracts soulful, transcendent connections. Romance here feels fated, spiritual, and boundless.',
+  'Pluto-MC': 'Pluto on the Midheaven brings intense transformation to your career and public role. This is a location of power, reinvention, and influence.',
+  'Pluto-IC': 'Pluto on the IC catalyzes deep psychological transformation. Ancestral healing, shadow work, and rebirth happen here.',
+  'Pluto-ASC': 'Pluto rising gives you penetrating intensity. You feel powerful and transformative here - others sense your depth immediately.',
+  'Pluto-DSC': 'Pluto on the Descendant attracts transformative, soul-level partnerships. Relationships here are profound and life-changing.',
+}
+
+export function getInterpretation(planet: Planet, lineType: LineType): string {
+  return INTERPRETATIONS[`${planet}-${lineType}`] ?? `${planet} ${lineType} line active - a significant energetic influence at this location.`
+}

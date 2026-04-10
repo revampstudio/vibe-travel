@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Vibe Travel",
+    "slug": "vibe-travel-mobile",
+    "scheme": "vibetravel",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android", "web"],
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

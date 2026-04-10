@@ -1,27 +1,21 @@
 import { create } from 'zustand'
-import type { AppState, BirthData, Planet } from '../types/index.ts'
+import { PLANETS } from '../lib/astrocartography'
+import type { AppState, BirthData, Planet } from '../types/index'
+import { readJSON, storage, writeJSON } from '../utils/storage'
 
 const SESSION_KEY = 'vibe-travel-birth'
 
 function loadBirthData(): BirthData | null {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
+  return readJSON<BirthData | null>(SESSION_KEY, null)
 }
 
 function saveBirthData(data: BirthData | null) {
-  try {
-    if (data) {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(data))
-    } else {
-      sessionStorage.removeItem(SESSION_KEY)
-    }
-  } catch {
-    // sessionStorage unavailable
+  if (data) {
+    writeJSON(SESSION_KEY, data)
+    return
   }
+
+  storage.removeItem(SESSION_KEY)
 }
 
 const savedBirth = loadBirthData()
@@ -33,7 +27,7 @@ export const useStore = create<AppState>((set) => ({
   astroLines: [],
   cities: [],
   selectedCity: null,
-  enabledPlanets: new Set<Planet>(['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn']),
+  enabledPlanets: new Set<Planet>(PLANETS),
   activeUtilityPanel: null,
   highlightedCity: null,
 
@@ -47,15 +41,6 @@ export const useStore = create<AppState>((set) => ({
   setCities: (cities) => set({ cities }),
   setSelectedCity: (selectedCity) => set({ selectedCity }),
   setActiveUtilityPanel: (activeUtilityPanel) => set({ activeUtilityPanel }),
-  togglePlanet: (planet) =>
-    set((state) => {
-      const next = new Set(state.enabledPlanets)
-      if (next.has(planet)) {
-        next.delete(planet)
-      } else {
-        next.add(planet)
-      }
-      return { enabledPlanets: next }
-    }),
+  togglePlanet: () => set((state) => ({ enabledPlanets: new Set(state.enabledPlanets) })),
   setHighlightedCity: (highlightedCity) => set({ highlightedCity }),
 }))

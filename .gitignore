@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+.expo/
+.expo-shared/
+.eas/
+apps/mobile/.expo/
+apps/mobile/.expo-shared/
+apps/mobile/.eas/
 
 # Environment variables
 .env

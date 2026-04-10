@@ -6,7 +6,7 @@ import {
 import bundledSnapshotPayload from '../fixtures/smartraveller.snapshot.json'
 
 const SOURCE_URL = 'https://www.smartraveller.gov.au/destinations-export'
-const CACHE_KEY_URL = 'https://cache.soul-cartography.internal/smartraveller/v2'
+const CACHE_KEY_URL = 'https://cache.vibe-travel.internal/smartraveller/v2'
 const MAX_SNAPSHOT_AGE_MS = 6 * 60 * 60 * 1000
 const UPSTREAM_TIMEOUT_MS = 8000
 
@@ -187,7 +187,7 @@ async function fetchJsonWithTimeout(sourceUrl: string, timeoutMs: number): Promi
     const response = await fetch(sourceUrl, {
       headers: {
         accept: 'application/json',
-        'user-agent': 'soul-cartography-advisory-api/1.0',
+        'user-agent': 'vibe-travel-advisory-api/1.0',
       },
       signal: controller.signal,
     })
