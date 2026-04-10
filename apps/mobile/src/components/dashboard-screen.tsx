@@ -584,7 +584,7 @@ function SettingsDrawer({
         </View>
 
         <Pressable
-          style={styles.secondaryAction}
+          style={styles.startOverLink}
           onPress={() => {
             setBirthData(null)
             setProfile(null)
@@ -595,7 +595,7 @@ function SettingsDrawer({
             onClose()
           }}
         >
-          <Text style={styles.secondaryActionText}>Start over</Text>
+          <Text style={styles.startOverLinkText}>Start over</Text>
         </Pressable>
       </ScrollView>
     </Drawer>
@@ -1328,18 +1328,16 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  secondaryAction: {
-    minHeight: 48,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceSoft,
+  startOverLink: {
+    alignSelf: 'center',
+    paddingVertical: 8,
   },
-  secondaryActionText: {
+  startOverLinkText: {
     fontFamily: fonts.sans,
     fontSize: 14,
     fontWeight: '700',
     color: colors.text,
+    textDecorationLine: 'underline',
   },
   sectionTitleSmall: {
     fontFamily: fonts.serif,
