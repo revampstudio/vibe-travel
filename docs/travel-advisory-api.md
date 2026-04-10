@@ -1,6 +1,6 @@
 # Australian Travel Advisory API
 
-This project now includes a Cloudflare Worker adapter at `worker/` that normalizes Smartraveller advisories into a stable JSON contract for web and React Native clients.
+This project includes a Cloudflare Worker adapter at `worker/` that normalizes Smartraveller advisories into a stable JSON contract for Expo and React Native clients.
 
 ## API contract
 
@@ -38,12 +38,13 @@ Response:
    - `cd worker`
    - `npm install`
    - `npm run dev`
-2. In web app `.env`, point frontend at worker:
-   - `VITE_TRAVEL_API_BASE=http://127.0.0.1:8787`
-3. Start web app from repo root:
-   - `npm run dev`
+2. In `apps/mobile/.env.local`, point the Expo app at the worker:
+   - `EXPO_PUBLIC_TRAVEL_API_BASE=http://127.0.0.1:8787`
+3. Start the Expo app:
+   - `cd apps/mobile`
+   - `npm run web`
 
-If `VITE_TRAVEL_API_BASE` is unset and the web app is running on `localhost`, the frontend now defaults to `http://127.0.0.1:8787`.
+If `EXPO_PUBLIC_TRAVEL_API_BASE` is unset and the Expo web app is running on `localhost`, the client defaults to `http://127.0.0.1:8787`.
 
 In local `wrangler dev`, the Smartraveller export can hang when fetched directly by the worker runtime. To keep local development usable, localhost requests fall back to a bundled snapshot in `worker/fixtures/smartraveller.snapshot.json` if the live export times out.
 
@@ -56,10 +57,10 @@ Optional local source override for testing:
 1. `cd worker`
 2. `npm install`
 3. `npm run deploy`
-4. Set `VITE_TRAVEL_API_BASE` in your web app env to deployed worker URL.
+4. Set `EXPO_PUBLIC_TRAVEL_API_BASE` in `apps/mobile/.env.local` or your deployment environment.
 
 Note: non-interactive deploy requires `CLOUDFLARE_API_TOKEN`.
 
-## React Native / Expo reuse
+## Expo reuse
 
-Keep this API unchanged and call the same endpoint from Expo. Only UI and local storage differ on mobile; advisory logic and matching remain server-side.
+Keep this API unchanged and call the same endpoint from Expo. Only UI and local storage differ on the client; advisory logic and matching remain server-side.

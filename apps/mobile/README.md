@@ -1,6 +1,6 @@
 # Vibe Travel Mobile
 
-Expo Router rewrite of the Vite web app, kept side-by-side so the existing web code remains untouched.
+Expo Router application for Vibe Travel.
 
 ## Run
 

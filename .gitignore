@@ -17,6 +17,8 @@ dist-ssr
 apps/mobile/.expo/
 apps/mobile/.expo-shared/
 apps/mobile/.eas/
+worker/.wrangler/
+.codex
 
 # Environment variables
 .env

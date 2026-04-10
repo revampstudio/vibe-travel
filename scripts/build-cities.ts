@@ -1,6 +1,6 @@
 /**
  * One-time build script: reads SimpleMaps CSV, filters pop >100k,
- * outputs compact array-of-arrays JSON to src/data/cities.json.
+ * outputs compact array-of-arrays JSON to apps/mobile/src/data/cities.json.
  *
  * Usage: npx tsx scripts/build-cities.ts
  */
@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const CSV_PATH = resolve(import.meta.dirname!, '../data-raw/worldcities.csv')
-const OUT_PATH = resolve(import.meta.dirname!, '../src/data/cities.json')
+const OUT_PATH = resolve(import.meta.dirname!, '../apps/mobile/src/data/cities.json')
 
 const MIN_POP = 50_000
 
