@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'expo-router'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 
+import { MobileScrollScreen } from '@/src/components/mobile-scroll-screen'
 import { fetchTravelAdvisory, type TravelAdvisoryLookup } from '@/src/lib/travelAdvisory'
 import { getInterpretation } from '@/src/lib/interpretations'
+import {
+  fetchCityActivities,
+  rankActivitiesForCity,
+  type CityActivitiesLookup,
+} from '@/src/lib/viator'
 import { fetchCityWikiSummary } from '@/src/lib/wiki'
 import { useStore } from '@/src/store/useStore'
 import type { CityWithEnergy, LineType, Planet } from '@/src/types'
@@ -47,6 +53,13 @@ function formatAdvisoryDate(value: string): string {
   }).format(new Date(timestamp))
 }
 
+function isAbortError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') return true
+  if (!(error instanceof Error)) return false
+
+  return error.name === 'AbortError' || /aborted/i.test(error.message)
+}
+
 export function CityDetailScreen({
   city,
   isHydrating = false,
@@ -57,7 +70,10 @@ export function CityDetailScreen({
   const [wikiSummary, setWikiSummary] = useState<string | null>(null)
   const [wikiLoading, setWikiLoading] = useState(false)
   const [advisoryState, setAdvisoryState] = useState<TravelAdvisoryLookup | null>(null)
+  const [activitiesState, setActivitiesState] = useState<CityActivitiesLookup | null>(null)
   const cities = useStore((state) => state.cities)
+  const { width } = useWindowDimensions()
+  const isCompact = width < 420
 
   useEffect(() => {
     if (!city) return
@@ -70,13 +86,35 @@ export function CityDetailScreen({
       .then((result) => {
         if (!cancelled) setWikiSummary(result?.summary ?? null)
       })
+      .catch((error: unknown) => {
+        if (isAbortError(error)) return
+        console.error('Failed to load city summary', error)
+        if (!cancelled) setWikiSummary(null)
+      })
       .finally(() => {
         if (!cancelled) setWikiLoading(false)
       })
 
-    void fetchTravelAdvisory(city.country, controller.signal).then((result) => {
-      if (!cancelled) setAdvisoryState(result)
-    })
+    void fetchTravelAdvisory(city.country, controller.signal)
+      .then((result) => {
+        if (!cancelled) setAdvisoryState(result)
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error)) return
+        console.error('Failed to load travel advisory', error)
+        if (!cancelled) setAdvisoryState({ status: 'unavailable' })
+      })
+
+    setActivitiesState(null)
+    void fetchCityActivities(city.name, city.country, controller.signal)
+      .then((result) => {
+        if (!cancelled) setActivitiesState(result)
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error)) return
+        console.error('Failed to load city activities', error)
+        if (!cancelled) setActivitiesState({ status: 'unavailable' })
+      })
 
     return () => {
       cancelled = true
@@ -100,48 +138,51 @@ export function CityDetailScreen({
     if (!city || maxEnergy <= 0) return 0
     return Math.round((city.energyScore / maxEnergy) * 100)
   }, [city, maxEnergy])
+  const rankedActivities = useMemo(() => {
+    if (!city || activitiesState?.status !== 'ok') return []
+    return rankActivitiesForCity(city, activitiesState.data.activities)
+  }, [activitiesState, city])
 
   if (isHydrating) {
     return (
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+      <MobileScrollScreen contentContainerStyle={styles.content}>
         <View style={styles.stack}>
           <View style={styles.card}>
             <Text style={styles.title}>Loading city details</Text>
             <Text style={styles.body}>Restoring your saved map data for this route.</Text>
           </View>
         </View>
-      </ScrollView>
+      </MobileScrollScreen>
     )
   }
 
   if (!city) {
     return (
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+      <MobileScrollScreen contentContainerStyle={styles.content}>
         <View style={styles.stack}>
           <View style={styles.card}>
             <Text style={styles.title}>City not found</Text>
             <Text style={styles.body}>This detail route needs an active city from the in-app recommendations.</Text>
             <Link href="/" asChild>
-              <Pressable style={styles.backButton}>
+              <Pressable
+                accessibilityHint="Returns to the map screen."
+                accessibilityLabel="Back to map"
+                accessibilityRole="button"
+                style={styles.backButton}
+              >
                 <Text style={styles.backButtonText}>Back to map</Text>
               </Pressable>
             </Link>
           </View>
         </View>
-      </ScrollView>
+      </MobileScrollScreen>
     )
   }
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+    <MobileScrollScreen contentContainerStyle={styles.content}>
       <View style={styles.stack}>
         <View style={styles.hero}>
-          <Link href="/" asChild>
-            <Pressable style={styles.backButtonGhost}>
-              <Text style={styles.backButtonGhostText}>Back to map</Text>
-            </Pressable>
-          </Link>
-
           <View style={styles.heroBadgeRow}>
             <View style={styles.heroBadge}>
               <Text style={styles.heroBadgeText}>
@@ -150,10 +191,10 @@ export function CityDetailScreen({
             </View>
           </View>
 
-          <Text style={styles.cityName}>{city.name}</Text>
+          <Text style={[styles.cityName, isCompact ? styles.cityNameCompact : null]}>{city.name}</Text>
           <Text style={styles.cityCountry}>{city.country}</Text>
 
-          <View style={styles.quickFactsRow}>
+          <View style={[styles.quickFactsRow, isCompact ? styles.quickFactsColumn : null]}>
             <View style={styles.quickFact}>
               <Text style={styles.quickFactLabel}>Country</Text>
               <Text style={styles.quickFactValue}>{city.country}</Text>
@@ -187,6 +228,68 @@ export function CityDetailScreen({
               ? 'Loading city context...'
               : (wikiSummary ?? `${city.name} offers a compelling blend of atmosphere, pace, and cultural texture for an intentional stay.`)}
           </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionEyebrow}>Experiences</Text>
+          <Text style={styles.sectionTitle}>Things to do here</Text>
+          {activitiesState === null ? (
+            <Text style={styles.body}>Loading live Viator activities for this city...</Text>
+          ) : null}
+          {activitiesState?.status === 'ok' && rankedActivities.length > 0 ? (
+            <View style={styles.activitiesList}>
+              {rankedActivities.map((activity) => (
+                <View key={activity.providerId} style={styles.activityCard}>
+                  <View style={styles.activityHeader}>
+                    <Text style={styles.activityTitle}>{activity.title}</Text>
+                  </View>
+
+                  <View style={styles.activityMetaRow}>
+                    {activity.priceLabel ? (
+                      <View style={styles.metaPill}>
+                        <Text style={styles.metaPillText}>{activity.priceLabel}</Text>
+                      </View>
+                    ) : null}
+                    {activity.durationLabel ? (
+                      <View style={styles.metaPill}>
+                        <Text style={styles.metaPillText}>{activity.durationLabel}</Text>
+                      </View>
+                    ) : null}
+                    {activity.rating !== null ? (
+                      <View style={styles.metaPill}>
+                        <Text style={styles.metaPillText}>
+                          {activity.rating.toFixed(1)}{activity.reviewCount ? ` (${activity.reviewCount})` : ''}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {activity.description ? (
+                    <Text style={styles.body}>{activity.description}</Text>
+                  ) : null}
+                  <Text style={styles.activityReason}>{activity.reason}</Text>
+
+                  {activity.url ? (
+                    <Pressable onPress={() => void Linking.openURL(activity.url as string)} style={styles.activityButton}>
+                      <Text style={styles.activityButtonText}>View on Viator</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {activitiesState?.status === 'ok' && rankedActivities.length === 0 ? (
+            <Text style={styles.body}>No live Viator activities were returned for this city yet.</Text>
+          ) : null}
+          {activitiesState?.status === 'not_found' ? (
+            <Text style={styles.body}>No live Viator activities were found for this city.</Text>
+          ) : null}
+          {activitiesState?.status === 'not_configured' ? (
+            <Text style={styles.body}>Live activities will appear here once the Viator feed is connected.</Text>
+          ) : null}
+          {activitiesState?.status === 'unavailable' ? (
+            <Text style={styles.body}>Live activities are temporarily unavailable for this destination.</Text>
+          ) : null}
         </View>
 
         {(advisory || advisoryState?.status === 'unavailable') && (
@@ -242,7 +345,7 @@ export function CityDetailScreen({
           ))}
         </View>
       </View>
-    </ScrollView>
+    </MobileScrollScreen>
   )
 }
 
@@ -250,9 +353,6 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    backgroundColor: colors.bg,
   },
   stack: {
     width: '100%',
@@ -291,6 +391,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
+  cityNameCompact: {
+    fontSize: 34,
+    lineHeight: 40,
+  },
   cityCountry: {
     fontFamily: fonts.sans,
     fontSize: 17,
@@ -299,6 +403,9 @@ const styles = StyleSheet.create({
   quickFactsRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  quickFactsColumn: {
+    flexDirection: 'column',
   },
   quickFact: {
     flex: 1,
@@ -460,6 +567,68 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
+  activitiesList: {
+    gap: 12,
+  },
+  activityCard: {
+    gap: 10,
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: colors.surfaceSoft,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  activityTitle: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  activityMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  metaPill: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  metaPillText: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  activityReason: {
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  activityButton: {
+    alignSelf: 'flex-start',
+    borderRadius: radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: colors.accent,
+    boxShadow: shadows.accent,
+  },
+  activityButtonText: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
   backButton: {
     alignSelf: 'flex-start',
     borderRadius: radii.md,
@@ -473,21 +642,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
-  },
-  backButtonGhost: {
-    alignSelf: 'flex-start',
-    borderRadius: radii.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    boxShadow: shadows.control,
-  },
-  backButtonGhostText: {
-    fontFamily: fonts.sans,
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
   },
 })

@@ -1,5 +1,8 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  BackHandler,
+  KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -28,6 +31,7 @@ import { ENERGY_TIERS, LINE_TYPE_STYLES } from '@/src/lib/mapGuidance'
 import { calcSoulProfile } from '@/src/lib/numerology'
 import { getNumerologyNeeds, rankCitiesByNumerology } from '@/src/lib/recommendations'
 import { fetchTravelAdvisory, type TravelAdvisoryLookup } from '@/src/lib/travelAdvisory'
+import { fetchCityActivities, rankActivitiesForCity } from '@/src/lib/viator'
 import { fetchCityWikiSummary } from '@/src/lib/wiki'
 import { loadCities } from '@/src/data/loadCities'
 import { useStore } from '@/src/store/useStore'
@@ -185,16 +189,63 @@ function useTravelAdvisory(country: string) {
   return advisoryState
 }
 
+function useCityActivities(city: CityWithEnergy | null) {
+  const [activitiesState, setActivitiesState] = useState<Awaited<ReturnType<typeof fetchCityActivities>> | null>(null)
+
+  useEffect(() => {
+    if (!city) return
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    setActivitiesState(null)
+    void fetchCityActivities(city.name, city.country, controller.signal)
+      .then((result) => {
+        if (!cancelled) setActivitiesState(result)
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error)) return
+        console.error('Failed to load city activities', error)
+        if (!cancelled) setActivitiesState({ status: 'unavailable' })
+      })
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [city])
+
+  return activitiesState
+}
+
 function FloatingButton({
   active = false,
+  compact = false,
+  label = 'Settings',
   onPress,
 }: {
   active?: boolean
+  compact?: boolean
+  label?: string
   onPress: () => void
 }) {
   return (
-    <Pressable onPress={onPress} style={[styles.floatingButton, active ? styles.floatingButtonActive : null]}>
-      <GearIcon active={active} />
+    <Pressable
+      accessibilityHint={`Opens the ${label.toLowerCase()} panel.`}
+      accessibilityLabel={`${label}${active ? ', open' : ''}`}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: active }}
+      onPress={onPress}
+      style={[styles.floatingButton, compact ? styles.floatingButtonCompact : null, active ? styles.floatingButtonActive : null]}
+    >
+      <View style={[styles.floatingButtonContent, compact ? styles.floatingButtonContentCompact : null]}>
+        <GearIcon active={active} />
+        {!compact ? (
+          <Text numberOfLines={1} style={[styles.floatingButtonLabel, active ? styles.floatingButtonLabelActive : null]}>
+            {label}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   )
 }
@@ -220,33 +271,50 @@ function GearIcon({ active }: { active: boolean }) {
   return <Text style={[styles.floatingButtonIcon, active ? styles.floatingButtonIconActive : null]}>⚙</Text>
 }
 
-function SparkleIcon() {
+function SparkleIcon({ active = false }: { active?: boolean }) {
   if (Platform.OS === 'web') {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
           d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-          stroke="#FF385C"
+          stroke={active ? '#FFFFFF' : '#FF385C'}
           strokeWidth="1.8"
         />
       </svg>
     )
   }
 
-  return <Text style={styles.insightsTriggerIcon}>✦</Text>
+  return <Text style={[styles.insightsTriggerIcon, active ? styles.insightsTriggerIconActive : null]}>✦</Text>
 }
 
 function InsightsTrigger({
+  active = false,
+  compact = false,
   lifeStage,
   onPress,
 }: {
+  active?: boolean
+  compact?: boolean
   lifeStage: string
   onPress: () => void
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.insightsTrigger}>
-      <SparkleIcon />
-      <Text style={styles.visuallyHidden}>{lifeStage}</Text>
+    <Pressable
+      accessibilityHint={`Opens insights tailored to your ${lifeStage.toLowerCase()}.`}
+      accessibilityLabel={`Insights${active ? ', open' : ''}`}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: active }}
+      onPress={onPress}
+      style={[styles.floatingButton, compact ? styles.floatingButtonCompact : null, active ? styles.insightsTriggerActive : null]}
+    >
+      <View style={[styles.floatingButtonContent, compact ? styles.floatingButtonContentCompact : null]}>
+        <SparkleIcon active={active} />
+        {!compact ? (
+          <Text numberOfLines={1} style={[styles.floatingButtonLabel, active ? styles.floatingButtonLabelActive : null]}>
+            Insights
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   )
 }
@@ -326,8 +394,10 @@ function Drawer({
 
   return (
     <Animated.View
+      accessibilityViewIsModal
       entering={entering}
       exiting={exiting}
+      importantForAccessibility="yes"
       style={[
         styles.drawer,
         variant === 'sheet'
@@ -353,14 +423,21 @@ function Drawer({
             },
         variant === 'sheet' ? styles.drawerSheet : null,
         variant === 'left' ? styles.drawerLeft : null,
-      ]}
+        ]}
+      onAccessibilityEscape={onClose}
     >
       <View style={styles.drawerHeader}>
         <View style={styles.drawerHeaderCopy}>
           <Text style={styles.drawerEyebrow}>{subtitle}</Text>
           <Text style={styles.drawerTitle}>{title}</Text>
         </View>
-        <Pressable onPress={onClose} style={styles.closeButton}>
+        <Pressable
+          accessibilityHint="Closes this panel and returns to the map."
+          accessibilityRole="button"
+          accessibilityLabel={`Close ${title}`}
+          onPress={onClose}
+          style={styles.closeButton}
+        >
           <Text style={styles.closeButtonText}>Close</Text>
         </Pressable>
       </View>
@@ -373,13 +450,16 @@ function SettingsDrawer({
   width,
   height,
   top,
+  variant,
   onClose,
 }: {
   width: number
   height: number
   top: number
+  variant: 'left' | 'sheet'
   onClose: () => void
 }) {
+  const insets = useSafeAreaInsets()
   const birthData = useStore((state) => state.birthData)
   const setBirthData = useStore((state) => state.setBirthData)
   const setProfile = useStore((state) => state.setProfile)
@@ -396,9 +476,13 @@ function SettingsDrawer({
     birthData ? { place_name: birthData.city, center: [birthData.lng, birthData.lat] } : null,
   )
   const [showResults, setShowResults] = useState(false)
+  const [searchState, setSearchState] = useState<'idle' | 'loading' | 'ready' | 'empty' | 'error'>('idle')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRequestIdRef = useRef(0)
+  const { width: windowWidth } = useWindowDimensions()
+  const isCompactForm = windowWidth < 420
 
   useEffect(() => {
     void preloadBirthCityAutocomplete()
@@ -408,21 +492,33 @@ function SettingsDrawer({
     if (!showResults) return
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    const trimmedQuery = cityQuery.trim()
+
+    if (trimmedQuery.length < 2) {
+      setCityResults([])
+      setSearchState('idle')
+      return () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+      }
+    }
+
+    setSearchState('loading')
     debounceRef.current = setTimeout(() => {
       const requestId = ++searchRequestIdRef.current
 
-      if (cityQuery.trim().length < 2) {
-        setCityResults([])
-        return
-      }
-
-      void searchBirthCities(cityQuery, {
+      void searchBirthCities(trimmedQuery, {
         limit: 5,
         includeMapbox: true,
         mapboxToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN,
       }).then((results) => {
         if (requestId === searchRequestIdRef.current) {
           setCityResults(results)
+          setSearchState(results.length > 0 ? 'ready' : 'empty')
+        }
+      }).catch(() => {
+        if (requestId === searchRequestIdRef.current) {
+          setCityResults([])
+          setSearchState('error')
         }
       })
     }, 260)
@@ -433,128 +529,202 @@ function SettingsDrawer({
   }, [cityQuery, showResults])
 
   const isValid = Boolean(date && selectedGeo)
+  const saveHint = isValid
+    ? 'Your map will update with these birth details.'
+    : 'Enter a birth date and choose your birth city to update the map.'
 
   const handleSave = async () => {
     if (!isValid || !selectedGeo) return
 
     setSaving(true)
-    const newBirth: BirthData = {
-      date,
-      time,
-      city: selectedGeo.place_name,
-      lng: selectedGeo.center[0],
-      lat: selectedGeo.center[1],
+    setSaveError(null)
+
+    try {
+      const newBirth: BirthData = {
+        date,
+        time,
+        city: selectedGeo.place_name,
+        lng: selectedGeo.center[0],
+        lat: selectedGeo.center[1],
+      }
+
+      const profile = calcSoulProfile(date)
+      const astroLines = computeAstroLines(date, time)
+      const sourceCities = await loadCities()
+      const enrichedCities = enrichCitiesWithEnergy(sourceCities, astroLines)
+
+      setBirthData(newBirth)
+      setProfile(profile)
+      setAstroLines(astroLines)
+      setCities(enrichedCities)
+      setSelectedCity(null)
+      setView('globe')
+      onClose()
+    } catch (error) {
+      console.error('Failed to update map settings', error)
+      setSaveError('We could not update your map right now. Please try again.')
+    } finally {
+      setSaving(false)
     }
-
-    const profile = calcSoulProfile(date)
-    const astroLines = computeAstroLines(date, time)
-    const sourceCities = await loadCities()
-    const enrichedCities = enrichCitiesWithEnergy(sourceCities, astroLines)
-
-    setBirthData(newBirth)
-    setProfile(profile)
-    setAstroLines(astroLines)
-    setCities(enrichedCities)
-    setSelectedCity(null)
-    setView('globe')
-
-    setSaving(false)
-    onClose()
   }
 
   return (
-    <Drawer title="Update your details" subtitle="Settings" onClose={onClose} width={width} height={height} top={top} variant="left">
-      <ScrollView
-        contentContainerStyle={styles.drawerScrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+    <Drawer title="Update your details" subtitle="Settings" onClose={onClose} width={width} height={height} top={top} variant={variant}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        enabled={Platform.OS !== 'web'}
+        keyboardVerticalOffset={variant === 'left' ? top : 0}
+        style={styles.drawerBody}
       >
-        <View style={styles.sectionBlock}>
-          <View style={styles.row}>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Date</Text>
-              <TextInput value={date} onChangeText={setDate} style={styles.input} placeholder="YYYY-MM-DD" />
+        <ScrollView
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+          contentContainerStyle={[styles.drawerScrollContent, { paddingBottom: insets.bottom + 28 }]}
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.sectionBlock}>
+            <View style={[styles.row, isCompactForm ? styles.rowStack : null]}>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Date</Text>
+                <TextInput
+                  accessibilityHint="Enter your birth date in year-month-day format."
+                  accessibilityLabel="Birth date"
+                  autoCapitalize="none"
+                  autoComplete="birthdate-full"
+                  onChangeText={setDate}
+                  placeholder="YYYY-MM-DD"
+                  style={styles.input}
+                  textContentType="birthdate"
+                  value={date}
+                />
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Time</Text>
+                <TextInput
+                  accessibilityHint="Enter the time of birth in 24-hour format."
+                  accessibilityLabel="Birth time"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  onChangeText={setTime}
+                  placeholder="HH:MM"
+                  style={styles.input}
+                  textContentType="none"
+                  value={time}
+                />
+              </View>
             </View>
+
             <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Time</Text>
-              <TextInput value={time} onChangeText={setTime} style={styles.input} placeholder="HH:MM" />
+              <Text style={styles.fieldLabel}>Birth city</Text>
+              <TextInput
+                accessibilityHint="Search for your birth city and choose one of the suggestions."
+                accessibilityLabel="Birth city"
+                autoCapitalize="words"
+                autoComplete="off"
+                autoCorrect={false}
+                value={cityQuery}
+                onChangeText={(value) => {
+                  setCityQuery(value)
+                  setSelectedGeo(null)
+                  setShowResults(true)
+                  setSaveError(null)
+                }}
+                onFocus={() => setShowResults(true)}
+                style={styles.input}
+                placeholder="Search city"
+              />
+              {showResults && searchState === 'loading' ? (
+                <View style={styles.resultsList}>
+                  <View style={styles.resultItem}>
+                    <Text style={styles.resultStatusText}>Searching cities...</Text>
+                  </View>
+                </View>
+              ) : null}
+              {showResults && searchState === 'error' ? (
+                <View style={styles.resultsList}>
+                  <View style={styles.resultItem}>
+                    <Text style={styles.resultStatusText}>Search is temporarily unavailable. Try again in a moment.</Text>
+                  </View>
+                </View>
+              ) : null}
+              {showResults && searchState === 'empty' ? (
+                <View style={styles.resultsList}>
+                  <View style={styles.resultItem}>
+                    <Text style={styles.resultStatusText}>No city matches found. Try a nearby city or different spelling.</Text>
+                  </View>
+                </View>
+              ) : null}
+              {showResults && searchState === 'ready' && cityResults.length > 0 ? (
+                <View style={styles.resultsList}>
+                  {cityResults.map((result) => (
+                    <Pressable
+                      key={`${result.place_name}-${result.center.join(',')}`}
+                      accessibilityHint="Select this city and close the suggestion list."
+                      accessibilityLabel={result.place_name}
+                      accessibilityRole="button"
+                      onPress={() => {
+                        setSelectedGeo(result)
+                        setCityQuery(result.place_name)
+                        setShowResults(false)
+                        setSearchState('ready')
+                      }}
+                      style={styles.resultItem}
+                    >
+                      <Text style={styles.resultText}>{result.place_name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </View>
+
+            <Pressable
+              accessibilityHint={isValid ? 'Recalculates your map and saves the new details.' : 'Enter a birth date and choose a city first.'}
+              accessibilityLabel={saving ? 'Recalculating map' : 'Update map'}
+              accessibilityRole="button"
+              disabled={!isValid || saving}
+              onPress={() => {
+                void handleSave()
+              }}
+              style={[styles.primaryAction, !isValid || saving ? styles.primaryActionDisabled : null]}
+            >
+              <Text style={styles.primaryActionText}>{saving ? 'Recalculating...' : 'Update map'}</Text>
+            </Pressable>
+            <Text style={styles.helperCopy}>{saveHint}</Text>
+            {saveError ? <Text style={styles.inlineErrorText}>{saveError}</Text> : null}
           </View>
 
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Birth city</Text>
-            <TextInput
-              value={cityQuery}
-              onChangeText={(value) => {
-                setCityQuery(value)
-                setSelectedGeo(null)
-                setShowResults(true)
-              }}
-              onFocus={() => setShowResults(true)}
-              style={styles.input}
-              placeholder="Search city"
-            />
-            {showResults && cityResults.length > 0 ? (
-              <View style={styles.resultsList}>
-                {cityResults.map((result) => (
-                  <Pressable
-                    key={`${result.place_name}-${result.center.join(',')}`}
-                    onPress={() => {
-                      setSelectedGeo(result)
-                      setCityQuery(result.place_name)
-                      setShowResults(false)
-                    }}
-                    style={styles.resultItem}
-                  >
-                    <Text style={styles.resultText}>{result.place_name}</Text>
-                  </Pressable>
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionTitleSmall}>Map guide</Text>
+
+            <View style={styles.legendGroup}>
+              <Text style={styles.legendHeading}>Dot color = energy</Text>
+              <View style={styles.legendWrap}>
+                {ENERGY_TIERS.map((tier) => (
+                  <View key={tier.id} style={styles.legendChip}>
+                    <View style={[styles.legendDot, { backgroundColor: tier.color }]} />
+                    <Text style={styles.legendText}>{tier.label}</Text>
+                  </View>
                 ))}
               </View>
-            ) : null}
-          </View>
-
-          <Pressable
-            onPress={() => {
-              void handleSave()
-            }}
-            disabled={!isValid || saving}
-            style={[styles.primaryAction, !isValid || saving ? styles.primaryActionDisabled : null]}
-          >
-            <Text style={styles.primaryActionText}>{saving ? 'Recalculating...' : 'Update map'}</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitleSmall}>Map guide</Text>
-
-          <View style={styles.legendGroup}>
-            <Text style={styles.legendHeading}>Dot color = energy</Text>
-            <View style={styles.legendWrap}>
-              {ENERGY_TIERS.map((tier) => (
-                <View key={tier.id} style={styles.legendChip}>
-                  <View style={[styles.legendDot, { backgroundColor: tier.color }]} />
-                  <Text style={styles.legendText}>{tier.label}</Text>
-                </View>
-              ))}
             </View>
-          </View>
 
-          <View style={styles.legendGroup}>
-            <Text style={styles.legendHeading}>Line color = planet</Text>
-            <View style={styles.legendWrap}>
-              {PLANETS.map((planet) => (
-                <View key={planet} style={styles.legendChip}>
-                  <View style={[styles.legendDot, { backgroundColor: PLANET_COLORS[planet] }]} />
-                  <Text style={styles.legendText}>{planet}</Text>
-                </View>
-              ))}
+            <View style={styles.legendGroup}>
+              <Text style={styles.legendHeading}>Line color = planet</Text>
+              <View style={styles.legendWrap}>
+                {PLANETS.map((planet) => (
+                  <View key={planet} style={styles.legendChip}>
+                    <View style={[styles.legendDot, { backgroundColor: PLANET_COLORS[planet] }]} />
+                    <Text style={styles.legendText}>{planet}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
 
-          <View style={styles.legendGroup}>
-            <Text style={styles.legendHeading}>Line styles</Text>
+            <View style={styles.legendGroup}>
+              <Text style={styles.legendHeading}>Line styles</Text>
               {LINE_TYPE_STYLES.map((style) => (
-                <View key={style.lineType} style={styles.lineStyleRow}>
+                <View key={style.lineType} style={[styles.lineStyleRow, isCompactForm ? styles.lineStyleRowStack : null]}>
                   <View style={styles.lineStyleCopy}>
                     <Text style={styles.lineStyleLabel}>{style.lineType} · {style.label}</Text>
                     <Text style={styles.lineStyleContext}>{style.context}</Text>
@@ -563,8 +733,9 @@ function SettingsDrawer({
                 </View>
               ))}
             </View>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Drawer>
   )
 }
@@ -575,17 +746,20 @@ function InsightsDrawer({
   top,
   onClose,
   onCityPress,
+  variant,
 }: {
   width: number
   height: number
   top: number
   onClose: () => void
   onCityPress: (city: CityWithEnergy) => void
+  variant: 'left' | 'sheet'
 }) {
   const profile = useStore((state) => state.profile)
   const cities = useStore((state) => state.cities)
   const highlightedCity = useStore((state) => state.highlightedCity)
   const setHighlightedCity = useStore((state) => state.setHighlightedCity)
+  const insets = useSafeAreaInsets()
   const [tab, setTab] = useState<InsightTab>('locations')
   const [advisoryLevelsByCountry, setAdvisoryLevelsByCountry] = useState<AdvisoryLevelMap>({})
 
@@ -697,18 +871,37 @@ function InsightsDrawer({
       width={width}
       height={height}
       top={top}
-      variant="left"
+      variant={variant}
     >
-      <View style={styles.segmentedControl}>
-        <Pressable onPress={() => setTab('locations')} style={[styles.segment, tab === 'locations' ? styles.segmentActive : null]}>
+      <View accessibilityLabel="Insights sections" accessibilityRole="tablist" style={styles.segmentedControl}>
+        <Pressable
+          accessibilityHint="Shows the list of best-fit places."
+          accessibilityLabel="Locations"
+          accessibilityRole="tab"
+          accessibilityState={{ selected: tab === 'locations' }}
+          onPress={() => setTab('locations')}
+          style={[styles.segment, tab === 'locations' ? styles.segmentActive : null]}
+        >
           <Text style={[styles.segmentText, tab === 'locations' ? styles.segmentTextActive : null]}>Locations</Text>
         </Pressable>
-        <Pressable onPress={() => setTab('about')} style={[styles.segment, tab === 'about' ? styles.segmentActive : null]}>
+        <Pressable
+          accessibilityHint="Shows your numerology cycle and timing snapshot."
+          accessibilityLabel="About"
+          accessibilityRole="tab"
+          accessibilityState={{ selected: tab === 'about' }}
+          onPress={() => setTab('about')}
+          style={[styles.segment, tab === 'about' ? styles.segmentActive : null]}
+        >
           <Text style={[styles.segmentText, tab === 'about' ? styles.segmentTextActive : null]}>About</Text>
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.drawerScrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.drawerScrollContent, { paddingBottom: insets.bottom + 18 }]}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {tab === 'locations' ? (
           <>
             <View style={styles.infoCard}>
@@ -728,6 +921,9 @@ function InsightsDrawer({
 
                 return (
                   <Pressable
+                    accessibilityHint="Opens the city details drawer."
+                    accessibilityLabel={`${city.name}, ${city.country}`}
+                    accessibilityRole="button"
                     key={`yearly-${key}`}
                     onPress={() => onCityPress(city)}
                     onPressIn={() => setHighlightedCity(key)}
@@ -781,6 +977,9 @@ function InsightsDrawer({
 
                 return (
                   <Pressable
+                    accessibilityHint="Opens the city details drawer."
+                    accessibilityLabel={`${city.name}, ${city.country}`}
+                    accessibilityRole="button"
                     key={`overall-${key}`}
                     onPress={() => onCityPress(city)}
                     onPressIn={() => setHighlightedCity(key)}
@@ -882,6 +1081,8 @@ function CityDrawer({
   const cities = useStore((state) => state.cities)
   const { summary, loading: wikiLoading } = useWikiSummary(city)
   const advisoryState = useTravelAdvisory(city.country)
+  const activitiesState = useCityActivities(city)
+  const insets = useSafeAreaInsets()
   const advisory = advisoryState?.status === 'ok' ? advisoryState.advisory : null
 
   const uniqueLines = useMemo(() => {
@@ -899,6 +1100,10 @@ function CityDrawer({
     if (maxEnergy <= 0) return 0
     return Math.round((city.energyScore / maxEnergy) * 100)
   }, [city.energyScore, maxEnergy])
+  const rankedActivities = useMemo(() => {
+    if (activitiesState?.status !== 'ok') return []
+    return rankActivitiesForCity(city, activitiesState.data.activities, 5)
+  }, [activitiesState, city])
 
   return (
     <Drawer
@@ -910,7 +1115,12 @@ function CityDrawer({
       top={top}
       variant={alignRight ? 'right' : 'sheet'}
     >
-      <ScrollView contentContainerStyle={styles.drawerScrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.drawerScrollContent, { paddingBottom: insets.bottom + 18 }]}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.alignmentGlass}>
           <View style={styles.alignmentRow}>
             <Text style={styles.alignmentLabel}>Alignment</Text>
@@ -928,6 +1138,67 @@ function CityDrawer({
               ? 'Loading city context...'
               : (summary ?? `${city.name} offers a compelling blend of atmosphere, pace, and cultural texture for an intentional stay.`)}
           </Text>
+        </View>
+
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitleSmall}>Things to do here</Text>
+          {activitiesState === null ? (
+            <Text style={styles.sectionCopySmall}>Loading live Viator activities...</Text>
+          ) : null}
+          {activitiesState?.status === 'ok' && rankedActivities.length > 0 ? (
+            <View style={styles.activitiesListCompact}>
+              {rankedActivities.map((activity) => (
+                <View key={activity.providerId} style={styles.activityCardCompact}>
+                  <View style={styles.activityHeaderCompact}>
+                    <Text style={styles.activityTitleCompact}>{activity.title}</Text>
+                  </View>
+                  <View style={styles.badgeRow}>
+                    {activity.priceLabel ? (
+                      <View style={styles.badgeNeutral}>
+                        <Text style={styles.badgeNeutralText}>{activity.priceLabel}</Text>
+                      </View>
+                    ) : null}
+                    {activity.durationLabel ? (
+                      <View style={styles.badgeNeutral}>
+                        <Text style={styles.badgeNeutralText}>{activity.durationLabel}</Text>
+                      </View>
+                    ) : null}
+                    {activity.rating !== null ? (
+                      <View style={styles.badgeNeutral}>
+                        <Text style={styles.badgeNeutralText}>
+                          {activity.rating.toFixed(1)}{activity.reviewCount ? ` (${activity.reviewCount})` : ''}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.cityCardBody}>{activity.reason}</Text>
+                  {activity.url ? (
+                    <Pressable
+                      accessibilityHint="Opens this activity in Viator."
+                      accessibilityLabel={`View ${activity.title} on Viator`}
+                      accessibilityRole="link"
+                      onPress={() => void Linking.openURL(activity.url as string)}
+                      style={styles.secondaryAction}
+                    >
+                      <Text style={styles.secondaryActionText}>View on Viator</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {activitiesState?.status === 'ok' && rankedActivities.length === 0 ? (
+            <Text style={styles.sectionCopySmall}>No live Viator activities were returned for this city.</Text>
+          ) : null}
+          {activitiesState?.status === 'not_found' ? (
+            <Text style={styles.sectionCopySmall}>No live Viator activities were found for this city.</Text>
+          ) : null}
+          {activitiesState?.status === 'not_configured' ? (
+            <Text style={styles.sectionCopySmall}>Live activities will appear here once the Viator feed is connected.</Text>
+          ) : null}
+          {activitiesState?.status === 'unavailable' ? (
+            <Text style={styles.sectionCopySmall}>Live activities are temporarily unavailable for this destination.</Text>
+          ) : null}
         </View>
 
         {advisory || advisoryState?.status === 'unavailable' ? (
@@ -983,15 +1254,20 @@ export function DashboardScreen() {
   const { width, height } = useWindowDimensions()
 
   const isLargeScreen = width >= 960
+  const utilityDrawerVariant = isLargeScreen ? 'left' : 'sheet'
   const utilityDrawerWidth = Math.min(width - 24, isLargeScreen ? 420 : Math.max(width - 24, 320))
-  const utilityDrawerHeight = Math.max(420, height - insets.top - insets.bottom - 24)
-  const utilityDrawerTop = insets.top + 12
+  const utilityDrawerHeight = isLargeScreen
+    ? Math.max(420, height - insets.top - insets.bottom - 24)
+    : Math.min(height * 0.84, 760)
+  const utilityDrawerTop = isLargeScreen ? insets.top + 12 : 0
   const cityDrawerWidth = isLargeScreen ? Math.min(460, width * 0.42) : width - 24
   const cityDrawerHeight = isLargeScreen
     ? Math.max(460, height - insets.top - insets.bottom - 24)
     : Math.min(height * 0.82, 760)
   const cityDrawerTop = isLargeScreen ? insets.top + 12 : 0
   const showInsightsTrigger = !(selectedCity && !isLargeScreen)
+  const compactUtilityButtons = width < 430
+  const overlayOpen = Boolean(activeUtilityPanel || selectedCity)
 
   if (!profile) return null
 
@@ -1010,21 +1286,57 @@ export function DashboardScreen() {
     setActiveUtilityPanel(activeUtilityPanel === panel ? null : panel)
   }
 
+  useEffect(() => {
+    if (Platform.OS === 'web') return
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (activeUtilityPanel) {
+        setActiveUtilityPanel(null)
+        return true
+      }
+
+      if (selectedCity) {
+        closeCity()
+        return true
+      }
+
+      return false
+    })
+
+    return () => subscription.remove()
+  }, [activeUtilityPanel, closeCity, selectedCity, setActiveUtilityPanel])
+
   return (
     <View style={styles.screen}>
-      <WorldMapCard onCityPress={openCity} />
+      <View
+        accessibilityElementsHidden={overlayOpen}
+        importantForAccessibility={overlayOpen ? 'no-hide-descendants' : 'auto'}
+        style={styles.mapLayer}
+      >
+        <WorldMapCard onCityPress={openCity} />
+      </View>
 
       {activeUtilityPanel ? (
-        <Pressable style={styles.backdrop} onPress={() => setActiveUtilityPanel(null)} />
+        <Pressable
+          accessibilityHint="Dismisses the open panel."
+          accessibilityLabel="Dismiss panel"
+          accessibilityRole="button"
+          onPress={() => setActiveUtilityPanel(null)}
+          style={styles.backdrop}
+        />
       ) : null}
 
       <View style={[styles.topLeftRail, { top: insets.top + 12 }]}>
         <FloatingButton
           active={activeUtilityPanel === 'settings'}
+          compact={compactUtilityButtons}
+          label="Settings"
           onPress={() => toggleUtilityPanel('settings')}
         />
         {showInsightsTrigger ? (
           <InsightsTrigger
+            active={activeUtilityPanel === 'insights'}
+            compact={compactUtilityButtons}
             lifeStage={profile.lifeStage}
             onPress={() => toggleUtilityPanel('insights')}
           />
@@ -1037,6 +1349,7 @@ export function DashboardScreen() {
           height={utilityDrawerHeight}
           top={utilityDrawerTop}
           onClose={() => setActiveUtilityPanel(null)}
+          variant={utilityDrawerVariant}
         />
       ) : null}
 
@@ -1047,6 +1360,17 @@ export function DashboardScreen() {
           top={utilityDrawerTop}
           onClose={() => setActiveUtilityPanel(null)}
           onCityPress={openCity}
+          variant={utilityDrawerVariant}
+        />
+      ) : null}
+
+      {selectedCity ? (
+        <Pressable
+          accessibilityHint="Dismisses the city details panel."
+          accessibilityLabel="Dismiss city details"
+          accessibilityRole="button"
+          onPress={closeCity}
+          style={styles.backdrop}
         />
       ) : null}
 
@@ -1069,6 +1393,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#DCE8F4',
   },
+  mapLayer: {
+    flex: 1,
+  },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(12, 18, 32, 0.22)',
@@ -1088,18 +1415,26 @@ const styles = StyleSheet.create({
     left: 12,
     zIndex: 20,
     gap: 12,
+    alignItems: 'flex-start',
   },
   floatingButton: {
-    width: 44,
-    height: 44,
+    minHeight: 48,
+    minWidth: 110,
     borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 14,
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderWidth: 1,
     borderColor: 'rgba(211, 215, 223, 0.96)',
     boxShadow: shadows.control,
+  },
+  floatingButtonCompact: {
+    width: 48,
+    minWidth: 48,
+    paddingHorizontal: 0,
+    justifyContent: 'center',
   },
   floatingButtonActive: {
     backgroundColor: colors.accent,
@@ -1114,32 +1449,47 @@ const styles = StyleSheet.create({
   floatingButtonIconActive: {
     color: '#FFFFFF',
   },
+  floatingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  floatingButtonContentCompact: {
+    justifyContent: 'center',
+  },
   floatingButtonLabel: {
     fontFamily: fonts.sans,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.text,
-    display: 'none',
   },
   floatingButtonLabelActive: {
     color: '#FFFFFF',
   },
   insightsTrigger: {
-    width: 44,
-    height: 44,
+    minHeight: 48,
+    minWidth: 110,
     borderRadius: 16,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 14,
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderWidth: 1,
     borderColor: 'rgba(211, 215, 223, 0.96)',
     boxShadow: shadows.control,
+  },
+  insightsTriggerActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   insightsTriggerIcon: {
     fontFamily: fonts.sans,
     fontSize: 18,
     fontWeight: '800',
     color: colors.accent,
+  },
+  insightsTriggerIconActive: {
+    color: '#FFFFFF',
   },
   visuallyHidden: {
     position: 'absolute',
@@ -1200,7 +1550,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   closeButton: {
-    minHeight: 40,
+    minHeight: 44,
     borderRadius: 14,
     paddingHorizontal: 12,
     alignItems: 'center',
@@ -1213,6 +1563,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
+  drawerBody: {
+    flex: 1,
+  },
   drawerScrollContent: {
     padding: 18,
     gap: 14,
@@ -1220,9 +1573,48 @@ const styles = StyleSheet.create({
   sectionBlock: {
     gap: 10,
   },
+  activitiesListCompact: {
+    gap: 10,
+  },
+  activityCardCompact: {
+    gap: 10,
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: colors.surfaceSoft,
+  },
+  activityHeaderCompact: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  activityTitleCompact: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  secondaryAction: {
+    alignSelf: 'flex-start',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: colors.accent,
+    boxShadow: shadows.accent,
+  },
+  secondaryActionText: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
   row: {
     flexDirection: 'row',
     gap: 10,
+  },
+  rowStack: {
+    flexDirection: 'column',
   },
   field: {
     flex: 1,
@@ -1265,6 +1657,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
   },
+  resultStatusText: {
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.muted,
+  },
   primaryAction: {
     minHeight: 50,
     borderRadius: 18,
@@ -1281,6 +1679,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  helperCopy: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.muted,
+  },
+  inlineErrorText: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.danger,
   },
   sectionTitleSmall: {
     fontFamily: fonts.serif,
@@ -1339,6 +1749,10 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: colors.surfaceSoft,
   },
+  lineStyleRowStack: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+  },
   lineStyleCopy: {
     flex: 1,
     gap: 2,
@@ -1388,7 +1802,7 @@ const styles = StyleSheet.create({
   },
   segment: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',

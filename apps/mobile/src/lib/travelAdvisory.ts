@@ -61,13 +61,6 @@ function resolveTravelApiBase(): string {
   const configured = process.env.EXPO_PUBLIC_TRAVEL_API_BASE?.replace(/\/+$/, '')
   if (configured) return configured
 
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://127.0.0.1:8787'
-    }
-  }
-
   return DEFAULT_TRAVEL_API_BASE
 }
 

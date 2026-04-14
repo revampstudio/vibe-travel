@@ -3,6 +3,7 @@ import {
   parseSmartravellerExport,
   type AdvisoryDestination,
 } from './smartraveller'
+import { fetchViatorActivities } from './viator'
 import bundledSnapshotPayload from '../fixtures/smartraveller.snapshot.json'
 
 const SOURCE_URL = 'https://www.smartraveller.gov.au/destinations-export'
@@ -12,6 +13,9 @@ const UPSTREAM_TIMEOUT_MS = 8000
 
 interface WorkerEnv {
   SMARTRAVELLER_EXPORT_URL?: string
+  VIATOR_API_BASE?: string
+  VIATOR_API_KEY?: string
+  VIATOR_CAMPAIGN_VALUE?: string
 }
 
 interface AdvisorySnapshot {
@@ -58,9 +62,20 @@ export default {
       return handleTravelAdvisoryRequest(url, env, ctx)
     }
 
+    if (
+      request.method === 'GET'
+      && (path === '/api/v1/city-activities' || path === '/api/city-activities')
+    ) {
+      return handleCityActivitiesRequest(url, env, ctx)
+    }
+
     return jsonResponse({
       error: 'Not found',
-      endpoints: ['/api/v1/health', '/api/v1/travel-advisory?country=Japan'],
+      endpoints: [
+        '/api/v1/health',
+        '/api/v1/travel-advisory?country=Japan',
+        '/api/v1/city-activities?city=Lisbon&country=Portugal',
+      ],
     }, 404)
   },
 }
@@ -109,6 +124,64 @@ async function handleTravelAdvisoryRequest(
   }
 
   return jsonResponse(response, 200, { 'cache-control': 'public, max-age=900, stale-while-revalidate=43200' })
+}
+
+async function handleCityActivitiesRequest(
+  url: URL,
+  env: WorkerEnv,
+  ctx: WorkerExecutionContext,
+): Promise<Response> {
+  const city = url.searchParams.get('city')?.trim() ?? ''
+  const country = url.searchParams.get('country')?.trim() ?? ''
+  const limit = clampLimit(url.searchParams.get('limit'))
+
+  if (!city || !country) {
+    return jsonResponse({ error: 'Missing required query parameters: city and country' }, 400)
+  }
+
+  const apiKey = env.VIATOR_API_KEY?.trim()
+  if (!apiKey) {
+    return jsonResponse(
+      { error: 'Viator integration is not configured', code: 'not_configured' },
+      503,
+    )
+  }
+
+  const cache = await caches.open('city-activities-cache-v1')
+  const cacheKey = new Request(
+    `https://cache.vibe-travel.internal/city-activities/v2?${new URLSearchParams({
+      city,
+      country,
+      limit: String(limit),
+    }).toString()}`,
+  )
+
+  const cached = await cache.match(cacheKey)
+  if (cached) {
+    return cached
+  }
+
+  try {
+    const responsePayload = await fetchViatorActivities({
+      apiKey,
+      city,
+      country,
+      limit,
+      baseUrl: env.VIATOR_API_BASE,
+      campaignValue: env.VIATOR_CAMPAIGN_VALUE,
+    })
+
+    const response = jsonResponse(
+      responsePayload,
+      200,
+      { 'cache-control': 'public, max-age=1800, stale-while-revalidate=21600' },
+    )
+    ctx.waitUntil(cache.put(cacheKey, response.clone()))
+    return response
+  } catch (error) {
+    console.error('Failed to load city activities from Viator', { city, country, error })
+    return jsonResponse({ error: 'Live activities are temporarily unavailable' }, 503)
+  }
 }
 
 async function getSnapshot(
@@ -229,6 +302,12 @@ async function tryParseSnapshot(response: Response): Promise<AdvisorySnapshot | 
 
 function trimTrailingSlash(path: string): string {
   return path.length > 1 ? path.replace(/\/+$/, '') : path
+}
+
+function clampLimit(value: string | null): number {
+  const parsed = Number.parseInt(value ?? '', 10)
+  if (!Number.isFinite(parsed)) return 8
+  return Math.min(12, Math.max(1, parsed))
 }
 
 function jsonResponse(

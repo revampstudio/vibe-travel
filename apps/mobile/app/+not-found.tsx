@@ -1,12 +1,11 @@
 import { Link } from 'expo-router'
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native'
+import { StyleSheet, Text, View, Pressable } from 'react-native'
+
+import { MobileScrollScreen } from '@/src/components/mobile-scroll-screen'
 
 export default function NotFoundScreen() {
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
-    >
+    <MobileScrollScreen contentContainerStyle={styles.content}>
       <View style={styles.card}>
         <Text style={styles.title}>Page not found</Text>
         <Text style={styles.body}>The route you asked for is not part of this scaffold yet.</Text>
@@ -16,7 +15,7 @@ export default function NotFoundScreen() {
           </Pressable>
         </Link>
       </View>
-    </ScrollView>
+    </MobileScrollScreen>
   )
 }
 
@@ -24,8 +23,6 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#F5F7FB',
   },
   card: {
     gap: 12,

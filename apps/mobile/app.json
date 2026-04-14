@@ -5,8 +5,38 @@
     "scheme": "vibetravel",
     "version": "0.1.0",
     "orientation": "portrait",
-    "platforms": ["ios", "android", "web"],
-    "plugins": ["expo-router"],
+    "icon": "./assets/brand/logo-512.png",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "ios": {
+      "icon": "./assets/brand/apple-touch-icon.png",
+      "infoPlist": {
+        "MGLMapboxMetricsEnabledSettingShownInApp": true
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F7F8",
+        "foregroundImage": "./assets/brand/icon-192.png"
+      },
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "favicon": "./assets/brand/icon-192.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-dev-client",
+        {
+          "launchMode": "launcher"
+        }
+      ],
+      "@rnmapbox/maps"
+    ],
     "experiments": {
       "typedRoutes": true
     }

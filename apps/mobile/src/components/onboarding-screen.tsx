@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,10 +14,13 @@ import { computeAstroLines } from '@/src/lib/astrocartography'
 import { preloadBirthCityAutocomplete, searchBirthCities, type GeoResult } from '@/src/lib/birthCityAutocomplete'
 import { enrichCitiesWithEnergy } from '@/src/lib/geo'
 import { calcSoulProfile } from '@/src/lib/numerology'
+import { MobileScrollScreen } from '@/src/components/mobile-scroll-screen'
 import { loadCities } from '@/src/data/loadCities'
 import { useStore } from '@/src/store/useStore'
 import type { BirthData } from '@/src/types'
 import { colors, fonts, radii, shadows } from '@/src/theme'
+
+const VIBE_TRAVEL_LOGO = require('../../assets/brand/logo-512.png')
 
 const STEP_COPY = {
   1: {
@@ -71,10 +74,10 @@ function getBirthdayError(day: string, month: string, year: string): string | nu
 }
 
 export function OnboardingScreen() {
-  const { setBirthData, setProfile, setAstroLines, setCities, setView, view } = useStore()
+  const { setBirthData, setProfile, setAstroLines, setCities, setView } = useStore()
   const { width } = useWindowDimensions()
 
-  const [step, setStep] = useState<1 | 2 | 3>(view === 'loading' ? 3 : 1)
+  const [step, setStep] = useState<1 | 2 | 3>(1)
   const [birthDay, setBirthDay] = useState('')
   const [birthMonth, setBirthMonth] = useState('')
   const [birthYear, setBirthYear] = useState('')
@@ -87,10 +90,18 @@ export function OnboardingScreen() {
   const [showBirthdayErrors, setShowBirthdayErrors] = useState(false)
   const [showSubmitErrors, setShowSubmitErrors] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [searchState, setSearchState] = useState<'idle' | 'loading' | 'ready' | 'empty' | 'error'>('idle')
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRequestIdRef = useRef(0)
+  const monthInputRef = useRef<TextInput>(null)
+  const yearInputRef = useRef<TextInput>(null)
+  const timeInputRef = useRef<TextInput>(null)
+  const cityInputRef = useRef<TextInput>(null)
+  const focusTimeAfterStep3Ref = useRef(false)
 
   const isCompact = width < 640
+  const isNarrow = width < 420
   const titleSize = isCompact ? 35 : 46
   const titleLineHeight = isCompact ? 42 : 52
   const bodySize = isCompact ? 16 : 18
@@ -101,23 +112,41 @@ export function OnboardingScreen() {
   }, [])
 
   useEffect(() => {
+    if (step !== 3 || !focusTimeAfterStep3Ref.current) return
+    focusTimeAfterStep3Ref.current = false
+    timeInputRef.current?.focus()
+  }, [step])
+
+  useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
+    const trimmedQuery = cityQuery.trim()
+
+    if (trimmedQuery.length < 2) {
+      setCityResults([])
+      setSearchState('idle')
+      return () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+      }
+    }
+
+    setSearchState('loading')
     debounceRef.current = setTimeout(() => {
       const requestId = ++searchRequestIdRef.current
 
-      if (cityQuery.trim().length < 2) {
-        setCityResults([])
-        return
-      }
-
-      void searchBirthCities(cityQuery, {
+      void searchBirthCities(trimmedQuery, {
         limit: 3,
         includeMapbox: true,
         mapboxToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN,
       }).then((results) => {
         if (requestId === searchRequestIdRef.current) {
           setCityResults(results)
+          setSearchState(results.length > 0 ? 'ready' : 'empty')
+        }
+      }).catch(() => {
+        if (requestId === searchRequestIdRef.current) {
+          setCityResults([])
+          setSearchState('error')
         }
       })
     }, 280)
@@ -138,51 +167,67 @@ export function OnboardingScreen() {
 
   const cityError = showSubmitErrors && !selectedGeo ? 'Choose your birth city from the suggestions.' : null
   const timeError = showSubmitErrors && timeKnown && !time ? 'Enter your birth time, or choose “I do not know”.' : null
-  const canSubmit = Boolean(birthdayIso && selectedGeo && (!timeKnown || time) && !isSubmitting)
+  const missingRequirements = [
+    !birthdayIso ? 'birthday' : null,
+    !selectedGeo ? 'birth city' : null,
+    timeKnown && !time ? 'birth time' : null,
+  ].filter((value): value is string => Boolean(value))
 
   const handleCitySelect = (result: GeoResult) => {
     setSelectedGeo(result)
     setCityQuery(result.place_name)
     setShowResults(false)
+    setSearchState('ready')
   }
 
   const handleSubmit = async () => {
     setShowSubmitErrors(true)
-    if (!birthdayIso || !selectedGeo || !canSubmit) return
+    setSubmitError(null)
+    if (!birthdayIso || !selectedGeo || (timeKnown && !time) || isSubmitting) return
 
     setIsSubmitting(true)
 
-    const birthData: BirthData = {
-      date: birthdayIso,
-      time: timeKnown ? time : '12:00',
-      city: selectedGeo.place_name,
-      lng: selectedGeo.center[0],
-      lat: selectedGeo.center[1],
+    try {
+      const birthData: BirthData = {
+        date: birthdayIso,
+        time: timeKnown ? time : '12:00',
+        city: selectedGeo.place_name,
+        lng: selectedGeo.center[0],
+        lat: selectedGeo.center[1],
+      }
+
+      const profile = calcSoulProfile(birthData.date)
+      const astroLines = computeAstroLines(birthData.date, birthData.time)
+      const cities = await loadCities()
+      const enrichedCities = enrichCitiesWithEnergy(cities, astroLines)
+
+      setBirthData(birthData)
+      setProfile(profile)
+      setAstroLines(astroLines)
+      setCities(enrichedCities)
+      setView('globe')
+    } catch (error) {
+      console.error('Failed to build onboarding map', error)
+      setSubmitError('We could not build your map right now. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
-
-    const profile = calcSoulProfile(birthData.date)
-    const astroLines = computeAstroLines(birthData.date, birthData.time)
-    const cities = await loadCities()
-    const enrichedCities = enrichCitiesWithEnergy(cities, astroLines)
-
-    setBirthData(birthData)
-    setProfile(profile)
-    setAstroLines(astroLines)
-    setCities(enrichedCities)
-    setView('globe')
-    setIsSubmitting(false)
   }
 
+  const submitHint = missingRequirements.length > 0
+    ? `To continue, add your ${missingRequirements.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`
+    : 'You are ready to build your map.'
+
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
+    <MobileScrollScreen contentContainerStyle={styles.content} extraBottomInset={40}>
       <View style={[styles.shell, isCompact ? styles.shellCompact : null]}>
-        <View style={styles.header}>
+        <View style={[styles.header, isNarrow ? styles.headerCompact : null]}>
           <View style={styles.brandRow}>
-            <View style={styles.brandMark} />
+            <Image
+              accessibilityIgnoresInvertColors
+              source={VIBE_TRAVEL_LOGO}
+              style={styles.brandMark}
+            />
             <View>
               <Text style={styles.kicker}>Vibe Travel</Text>
               <Text style={styles.brandSubhead}>Personal map setup</Text>
@@ -218,7 +263,13 @@ export function OnboardingScreen() {
 
             <Text style={styles.helperText}>Setup takes less than a minute.</Text>
 
-            <Pressable style={styles.primaryButton} onPress={() => setStep(2)}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Start setup"
+              accessibilityHint="Begin the onboarding flow."
+              style={styles.primaryButton}
+              onPress={() => setStep(2)}
+            >
               <Text style={styles.primaryButtonText}>Start setup</Text>
             </Pressable>
           </View>
@@ -233,21 +284,47 @@ export function OnboardingScreen() {
                   value={birthDay}
                   onChangeText={(value) => setBirthDay(digitsOnly(value).slice(0, 2))}
                   placeholder="DD"
+                  accessibilityLabel="Birth day"
+                  accessibilityHint="Enter the day part of your birthday."
+                  autoComplete="birthdate-day"
                   keyboardType="number-pad"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => monthInputRef.current?.focus()}
                   style={[styles.input, styles.birthdayInput, styles.centerText]}
                 />
                 <TextInput
+                  ref={monthInputRef}
                   value={birthMonth}
                   onChangeText={(value) => setBirthMonth(digitsOnly(value).slice(0, 2))}
                   placeholder="MM"
+                  accessibilityLabel="Birth month"
+                  accessibilityHint="Enter the month part of your birthday."
+                  autoComplete="birthdate-month"
                   keyboardType="number-pad"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => yearInputRef.current?.focus()}
                   style={[styles.input, styles.birthdayInput, styles.centerText]}
                 />
                 <TextInput
+                  ref={yearInputRef}
                   value={birthYear}
                   onChangeText={(value) => setBirthYear(digitsOnly(value).slice(0, 4))}
                   placeholder="YYYY"
+                  accessibilityLabel="Birth year"
+                  accessibilityHint="Enter the year part of your birthday."
+                  autoComplete="birthdate-year"
                   keyboardType="number-pad"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    setShowBirthdayErrors(true)
+                    if (!birthdayError) {
+                      focusTimeAfterStep3Ref.current = true
+                      setStep(3)
+                    }
+                  }}
                   style={[styles.input, styles.birthdayInput, styles.centerText]}
                 />
               </View>
@@ -255,14 +332,26 @@ export function OnboardingScreen() {
             </View>
 
             <View style={[styles.actionRow, isCompact ? styles.actionColumn : null]}>
-              <Pressable style={[styles.secondaryButton, !isCompact ? styles.secondaryFixed : null]} onPress={() => setStep(1)}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+                accessibilityHint="Return to the previous onboarding step."
+                style={[styles.secondaryButton, !isCompact ? styles.secondaryFixed : null]}
+                onPress={() => setStep(1)}
+              >
                 <Text style={styles.secondaryButtonText}>Back</Text>
               </Pressable>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Continue"
+                accessibilityHint="Move to the birth time and city step."
                 style={styles.primaryButton}
                 onPress={() => {
                   setShowBirthdayErrors(true)
-                  if (!birthdayError) setStep(3)
+                  if (!birthdayError) {
+                    focusTimeAfterStep3Ref.current = true
+                    setStep(3)
+                  }
                 }}
               >
                 <Text style={styles.primaryButtonText}>Continue</Text>
@@ -276,15 +365,26 @@ export function OnboardingScreen() {
             <View>
               <Text style={styles.fieldLabel}>Birth time</Text>
               <TextInput
+                ref={timeInputRef}
                 value={time}
                 onChangeText={setTime}
                 placeholder="12:00"
+                accessibilityLabel="Birth time"
+                accessibilityHint="Enter your birth time, or choose the checkbox below if you do not know it."
+                autoComplete="off"
                 autoCapitalize="none"
+                returnKeyType="next"
+                blurOnSubmit={false}
+                onSubmitEditing={() => cityInputRef.current?.focus()}
                 editable={timeKnown}
                 style={[styles.input, !timeKnown ? styles.inputDisabled : null]}
               />
 
               <Pressable
+                accessibilityRole="checkbox"
+                accessibilityLabel="I do not know my birth time"
+                accessibilityHint="Use 12:00 PM as the default birth time."
+                accessibilityState={{ checked: !timeKnown }}
                 style={styles.checkboxRow}
                 onPress={() => setTimeKnown((current) => !current)}
               >
@@ -299,27 +399,62 @@ export function OnboardingScreen() {
             <View style={styles.cityFieldWrap}>
               <Text style={styles.fieldLabel}>Birth city</Text>
               <TextInput
+                ref={cityInputRef}
                 value={cityQuery}
                 onChangeText={(value) => {
                   setCityQuery(value)
                   setSelectedGeo(null)
                   setShowResults(true)
+                  setSubmitError(null)
                 }}
                 onFocus={() => setShowResults(true)}
                 placeholder="Search for your birth city"
+                accessibilityLabel="Birth city search"
+                accessibilityHint="Type at least two letters to search for your birth city and choose a suggestion."
+                autoComplete="off"
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="search"
+                onSubmitEditing={() => setShowResults(true)}
                 style={styles.input}
               />
 
-              {showResults && cityResults.length > 0 ? (
-                <View style={styles.resultsOverlay}>
+              {showResults && searchState === 'loading' ? (
+                <View style={styles.resultsList}>
+                  <View style={styles.resultRow}>
+                    <ActivityIndicator color={colors.accent} />
+                    <Text style={styles.resultStatusText}>Searching cities...</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {showResults && searchState === 'error' ? (
+                <View style={styles.resultsList}>
+                  <View style={styles.resultRow}>
+                    <Text style={styles.resultStatusText}>Search is temporarily unavailable. Try again in a moment.</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {showResults && searchState === 'empty' ? (
+                <View style={styles.resultsList}>
+                  <View style={styles.resultRow}>
+                    <Text style={styles.resultStatusText}>No city matches found. Try a nearby city or different spelling.</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {showResults && searchState === 'ready' && cityResults.length > 0 ? (
+                <View style={styles.resultsList}>
                   {cityResults.slice(0, 3).map((result, index) => {
                     const selected = selectedGeo?.place_name === result.place_name
                     return (
                       <Pressable
                         key={`${result.place_name}-${index}`}
                         onPress={() => handleCitySelect(result)}
+                        accessibilityRole="button"
+                        accessibilityLabel={result.place_name}
+                        accessibilityHint="Select this city as your birth city."
                         style={[styles.resultRow, selected ? styles.resultRowSelected : null]}
                       >
                         <View style={styles.resultTextWrap}>
@@ -332,24 +467,35 @@ export function OnboardingScreen() {
               ) : null}
 
               {cityError ? <Text style={styles.errorText}>{cityError}</Text> : null}
+              {submitError ? <Text style={styles.errorText}>{submitError}</Text> : null}
             </View>
 
             <View style={[styles.actionRow, isCompact ? styles.actionColumn : null]}>
-              <Pressable style={[styles.secondaryButton, !isCompact ? styles.secondaryFixed : null]} onPress={() => setStep(2)}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Back"
+                accessibilityHint="Return to the birthday step."
+                style={[styles.secondaryButton, !isCompact ? styles.secondaryFixed : null]}
+                onPress={() => setStep(2)}
+              >
                 <Text style={styles.secondaryButtonText}>Back</Text>
               </Pressable>
               <Pressable
-                style={[styles.primaryButton, !canSubmit ? styles.primaryButtonDisabled : null]}
-                disabled={!canSubmit}
+                accessibilityRole="button"
+                accessibilityLabel="Build my map"
+                accessibilityHint={missingRequirements.length > 0 ? submitHint : 'Build your map and continue to the globe.'}
+                style={[styles.primaryButton, isSubmitting ? styles.primaryButtonDisabled : null]}
+                disabled={isSubmitting}
                 onPress={() => void handleSubmit()}
               >
                 {isSubmitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Build my map</Text>}
               </Pressable>
             </View>
+            <Text style={styles.helperText}>{submitHint}</Text>
           </View>
         ) : null}
       </View>
-    </ScrollView>
+    </MobileScrollScreen>
   )
 }
 
@@ -357,9 +503,6 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    backgroundColor: colors.bg,
   },
   shell: {
     width: '100%',
@@ -384,6 +527,10 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(227, 230, 235, 0.85)',
     paddingBottom: 24,
   },
+  headerCompact: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+  },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -391,12 +538,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   brandMark: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceSoft,
+    width: 44,
+    height: 44,
+    resizeMode: 'contain',
   },
   kicker: {
     fontFamily: fonts.sans,
@@ -565,20 +709,16 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   cityFieldWrap: {
-    position: 'relative',
-    zIndex: 4,
+    gap: 10,
   },
-  resultsOverlay: {
-    position: 'absolute',
-    top: 86,
-    left: 0,
-    right: 0,
+  resultsList: {
     overflow: 'hidden',
     borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     boxShadow: shadows.popover,
+    maxHeight: 220,
   },
   resultRow: {
     flexDirection: 'row',
@@ -597,6 +737,13 @@ const styles = StyleSheet.create({
   resultTextWrap: {
     flex: 1,
     gap: 2,
+  },
+  resultStatusText: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.muted,
   },
   resultTitle: {
     fontFamily: fonts.sans,

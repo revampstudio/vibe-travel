@@ -56,6 +56,14 @@ export default function RootLayout() {
           <Stack.Screen
             name="city/[cityKey]"
             options={{
+              headerShadowVisible: false,
+              headerShown: true,
+              headerStyle: { backgroundColor: colors.bg },
+              headerTintColor: colors.text,
+              headerTitleStyle: {
+                color: colors.text,
+                fontFamily: fonts.serif,
+              },
               title: 'City Details',
             }}
           />
