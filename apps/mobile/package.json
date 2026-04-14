@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "prebuild": "expo prebuild",
+    "web:build": "expo export --platform web",
     "web": "expo start --web",
     "doctor": "expo doctor"
   },
