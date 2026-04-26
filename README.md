@@ -53,11 +53,15 @@ Create `apps/mobile/.env.local` if you want the Expo app to call a specific advi
 ```bash
 EXPO_PUBLIC_MAPBOX_TOKEN=pk.your_public_mapbox_token
 EXPO_PUBLIC_TRAVEL_API_BASE=http://127.0.0.1:8787
+EXPO_PUBLIC_POSTHOG_API_KEY=phc_your_project_api_key
+EXPO_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
 Native iOS and Android now use Mapbox's native SDKs through `@rnmapbox/maps`, so the app should be run with a dev client or native run target rather than Expo Go. `npm start` in `apps/mobile` now starts Metro in dev-client mode.
 
 If `EXPO_PUBLIC_TRAVEL_API_BASE` is unset, the Expo app falls back to bundled advisory data when needed.
+
+PostHog analytics are disabled unless `EXPO_PUBLIC_POSTHOG_API_KEY` is set. Use `https://us.i.posthog.com` for US projects or `https://eu.i.posthog.com` for EU projects.
 
 ## Android setup note
 

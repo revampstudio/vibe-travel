@@ -3,6 +3,7 @@ import { Link } from 'expo-router'
 import { Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 
 import { MobileScrollScreen } from '@/src/components/mobile-scroll-screen'
+import { cityAnalyticsProperties, track } from '@/src/lib/analytics'
 import { fetchTravelAdvisory, type TravelAdvisoryLookup } from '@/src/lib/travelAdvisory'
 import { getInterpretation } from '@/src/lib/interpretations'
 import {
@@ -77,6 +78,11 @@ export function CityDetailScreen({
 
   useEffect(() => {
     if (!city) return
+
+    track('city_detail_viewed', {
+      ...cityAnalyticsProperties(city),
+      source: 'route',
+    })
 
     let cancelled = false
     const controller = new AbortController()
@@ -270,7 +276,18 @@ export function CityDetailScreen({
                   <Text style={styles.activityReason}>{activity.reason}</Text>
 
                   {activity.url ? (
-                    <Pressable onPress={() => void Linking.openURL(activity.url as string)} style={styles.activityButton}>
+                    <Pressable
+                      onPress={() => {
+                        track('activity_link_opened', {
+                          ...cityAnalyticsProperties(city),
+                          provider: 'viator',
+                          activity_id: activity.providerId,
+                          source: 'route',
+                        })
+                        void Linking.openURL(activity.url as string)
+                      }}
+                      style={styles.activityButton}
+                    >
                       <Text style={styles.activityButtonText}>View on Viator</Text>
                     </Pressable>
                   ) : null}

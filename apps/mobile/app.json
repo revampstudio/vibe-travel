@@ -37,7 +37,8 @@
           "launchMode": "launcher"
         }
       ],
-      "@rnmapbox/maps"
+      "@rnmapbox/maps",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

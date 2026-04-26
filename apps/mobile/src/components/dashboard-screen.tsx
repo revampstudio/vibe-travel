@@ -23,6 +23,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { WorldMapCard } from '@/src/components/world-map-card'
+import { cityAnalyticsProperties, track } from '@/src/lib/analytics'
 import { PLANET_COLORS, PLANETS, computeAstroLines } from '@/src/lib/astrocartography'
 import { preloadBirthCityAutocomplete, searchBirthCities, type GeoResult } from '@/src/lib/birthCityAutocomplete'
 import { enrichCitiesWithEnergy } from '@/src/lib/geo'
@@ -559,6 +560,10 @@ function SettingsDrawer({
       setCities(enrichedCities)
       setSelectedCity(null)
       setView('globe')
+      track('settings_updated', {
+        mapped_city_count: enrichedCities.length,
+        active_line_count: astroLines.length,
+      })
       onClose()
     } catch (error) {
       console.error('Failed to update map settings', error)
@@ -879,7 +884,10 @@ function InsightsDrawer({
           accessibilityLabel="Locations"
           accessibilityRole="tab"
           accessibilityState={{ selected: tab === 'locations' }}
-          onPress={() => setTab('locations')}
+          onPress={() => {
+            setTab('locations')
+            track('insights_tab_viewed', { tab: 'locations' })
+          }}
           style={[styles.segment, tab === 'locations' ? styles.segmentActive : null]}
         >
           <Text style={[styles.segmentText, tab === 'locations' ? styles.segmentTextActive : null]}>Locations</Text>
@@ -889,7 +897,10 @@ function InsightsDrawer({
           accessibilityLabel="About"
           accessibilityRole="tab"
           accessibilityState={{ selected: tab === 'about' }}
-          onPress={() => setTab('about')}
+          onPress={() => {
+            setTab('about')
+            track('insights_tab_viewed', { tab: 'about' })
+          }}
           style={[styles.segment, tab === 'about' ? styles.segmentActive : null]}
         >
           <Text style={[styles.segmentText, tab === 'about' ? styles.segmentTextActive : null]}>About</Text>
@@ -1105,6 +1116,10 @@ function CityDrawer({
     return rankActivitiesForCity(city, activitiesState.data.activities, 5)
   }, [activitiesState, city])
 
+  useEffect(() => {
+    track('city_detail_viewed', cityAnalyticsProperties(city))
+  }, [city])
+
   return (
     <Drawer
       title={city.name}
@@ -1177,7 +1192,14 @@ function CityDrawer({
                       accessibilityHint="Opens this activity in Viator."
                       accessibilityLabel={`View ${activity.title} on Viator`}
                       accessibilityRole="link"
-                      onPress={() => void Linking.openURL(activity.url as string)}
+                      onPress={() => {
+                        track('activity_link_opened', {
+                          ...cityAnalyticsProperties(city),
+                          provider: 'viator',
+                          activity_id: activity.providerId,
+                        })
+                        void Linking.openURL(activity.url as string)
+                      }}
                       style={styles.secondaryAction}
                     >
                       <Text style={styles.secondaryActionText}>View on Viator</Text>
@@ -1269,21 +1291,25 @@ export function DashboardScreen() {
   const compactUtilityButtons = width < 430
   const overlayOpen = Boolean(activeUtilityPanel || selectedCity)
 
-  if (!profile) return null
-
   const openCity = (city: CityWithEnergy) => {
     setActiveUtilityPanel(null)
     setSelectedCity(city)
     setView('detail')
+    track('city_selected', cityAnalyticsProperties(city))
   }
 
   const closeCity = () => {
+    if (selectedCity) {
+      track('city_detail_closed', cityAnalyticsProperties(selectedCity))
+    }
     setSelectedCity(null)
     setView('globe')
   }
 
   const toggleUtilityPanel = (panel: UtilityPanelState) => {
-    setActiveUtilityPanel(activeUtilityPanel === panel ? null : panel)
+    const nextPanel = activeUtilityPanel === panel ? null : panel
+    setActiveUtilityPanel(nextPanel)
+    track(nextPanel ? 'utility_panel_opened' : 'utility_panel_closed', { panel })
   }
 
   useEffect(() => {
@@ -1306,6 +1332,12 @@ export function DashboardScreen() {
     return () => subscription.remove()
   }, [activeUtilityPanel, closeCity, selectedCity, setActiveUtilityPanel])
 
+  useEffect(() => {
+    if (profile) track('map_viewed')
+  }, [profile])
+
+  if (!profile) return null
+
   return (
     <View style={styles.screen}>
       <View
@@ -1321,7 +1353,10 @@ export function DashboardScreen() {
           accessibilityHint="Dismisses the open panel."
           accessibilityLabel="Dismiss panel"
           accessibilityRole="button"
-          onPress={() => setActiveUtilityPanel(null)}
+          onPress={() => {
+            setActiveUtilityPanel(null)
+            track('utility_panel_closed', { panel: activeUtilityPanel })
+          }}
           style={styles.backdrop}
         />
       ) : null}
@@ -1348,7 +1383,10 @@ export function DashboardScreen() {
           width={utilityDrawerWidth}
           height={utilityDrawerHeight}
           top={utilityDrawerTop}
-          onClose={() => setActiveUtilityPanel(null)}
+          onClose={() => {
+            setActiveUtilityPanel(null)
+            track('utility_panel_closed', { panel: 'settings' })
+          }}
           variant={utilityDrawerVariant}
         />
       ) : null}
@@ -1358,7 +1396,10 @@ export function DashboardScreen() {
           width={utilityDrawerWidth}
           height={utilityDrawerHeight}
           top={utilityDrawerTop}
-          onClose={() => setActiveUtilityPanel(null)}
+          onClose={() => {
+            setActiveUtilityPanel(null)
+            track('utility_panel_closed', { panel: 'insights' })
+          }}
           onCityPress={openCity}
           variant={utilityDrawerVariant}
         />

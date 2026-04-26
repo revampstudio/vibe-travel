@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 
 import { computeAstroLines } from '@/src/lib/astrocartography'
+import { track } from '@/src/lib/analytics'
 import { preloadBirthCityAutocomplete, searchBirthCities, type GeoResult } from '@/src/lib/birthCityAutocomplete'
 import { enrichCitiesWithEnergy } from '@/src/lib/geo'
 import { calcSoulProfile } from '@/src/lib/numerology'
@@ -112,6 +113,10 @@ export function OnboardingScreen() {
   }, [])
 
   useEffect(() => {
+    track('onboarding_step_viewed', { step })
+  }, [step])
+
+  useEffect(() => {
     if (step !== 3 || !focusTimeAfterStep3Ref.current) return
     focusTimeAfterStep3Ref.current = false
     timeInputRef.current?.focus()
@@ -178,6 +183,10 @@ export function OnboardingScreen() {
     setCityQuery(result.place_name)
     setShowResults(false)
     setSearchState('ready')
+    track('birth_city_selected', {
+      onboarding_step: step,
+      result_count: cityResults.length,
+    })
   }
 
   const handleSubmit = async () => {
@@ -206,6 +215,11 @@ export function OnboardingScreen() {
       setAstroLines(astroLines)
       setCities(enrichedCities)
       setView('globe')
+      track('onboarding_completed', {
+        time_known: timeKnown,
+        mapped_city_count: enrichedCities.length,
+        active_line_count: astroLines.length,
+      })
     } catch (error) {
       console.error('Failed to build onboarding map', error)
       setSubmitError('We could not build your map right now. Please try again.')

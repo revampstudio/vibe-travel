@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { AppBootstrap } from '@/src/components/app-bootstrap'
+import { AnalyticsProvider } from '@/src/lib/analytics'
 import { colors, fonts } from '@/src/theme'
 
 function ensureWebFonts() {
@@ -39,36 +40,38 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <AppBootstrap />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.bg },
-            headerStyle: { backgroundColor: colors.bg },
-            headerTitleStyle: {
-              color: colors.text,
-              fontFamily: fonts.serif,
-            },
-          }}
-        >
-          <Stack.Screen name="index" options={{ title: 'Vibe Travel' }} />
-          <Stack.Screen
-            name="city/[cityKey]"
-            options={{
-              headerShadowVisible: false,
-              headerShown: true,
+      <AnalyticsProvider>
+        <SafeAreaProvider>
+          <AppBootstrap />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.bg },
               headerStyle: { backgroundColor: colors.bg },
-              headerTintColor: colors.text,
               headerTitleStyle: {
                 color: colors.text,
                 fontFamily: fonts.serif,
               },
-              title: 'City Details',
             }}
-          />
-        </Stack>
-      </SafeAreaProvider>
+          >
+            <Stack.Screen name="index" options={{ title: 'Vibe Travel' }} />
+            <Stack.Screen
+              name="city/[cityKey]"
+              options={{
+                headerShadowVisible: false,
+                headerShown: true,
+                headerStyle: { backgroundColor: colors.bg },
+                headerTintColor: colors.text,
+                headerTitleStyle: {
+                  color: colors.text,
+                  fontFamily: fonts.serif,
+                },
+                title: 'City Details',
+              }}
+            />
+          </Stack>
+        </SafeAreaProvider>
+      </AnalyticsProvider>
     </GestureHandlerRootView>
   )
 }
