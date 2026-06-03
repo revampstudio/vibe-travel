@@ -10,6 +10,7 @@ const SOURCE_URL = 'https://www.smartraveller.gov.au/destinations-export'
 const CACHE_KEY_URL = 'https://cache.vibe-travel.internal/smartraveller/v2'
 const MAX_SNAPSHOT_AGE_MS = 6 * 60 * 60 * 1000
 const UPSTREAM_TIMEOUT_MS = 8000
+const PRIVACY_POLICY_UPDATED = '17 May 2026'
 
 interface WorkerEnv {
   SMARTRAVELLER_EXPORT_URL?: string
@@ -55,6 +56,10 @@ export default {
       return jsonResponse({ ok: true, source: advisorySourceUrl(env) })
     }
 
+    if (request.method === 'GET' && (path === '/privacy' || path === '/privacy-policy')) {
+      return privacyPolicyResponse()
+    }
+
     if (
       request.method === 'GET'
       && (path === '/api/v1/travel-advisory' || path === '/api/travel-advisory')
@@ -75,6 +80,7 @@ export default {
         '/api/v1/health',
         '/api/v1/travel-advisory?country=Japan',
         '/api/v1/city-activities?city=Lisbon&country=Portugal',
+        '/privacy',
       ],
     }, 404)
   },
@@ -321,6 +327,109 @@ function jsonResponse(
       'content-type': 'application/json; charset=utf-8',
       ...corsHeaders(),
       ...extraHeaders,
+    },
+  })
+}
+
+function privacyPolicyResponse(): Response {
+  return new Response(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vibe Travel Privacy Policy</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #18201f;
+      background: #f7f3ec;
+    }
+    body {
+      margin: 0;
+      line-height: 1.6;
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+    h1, h2 {
+      line-height: 1.2;
+      color: #10201d;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(2rem, 8vw, 3rem);
+    }
+    h2 {
+      margin: 32px 0 8px;
+      font-size: 1.25rem;
+    }
+    p, li {
+      font-size: 1rem;
+    }
+    a {
+      color: #0c6a57;
+    }
+    .updated {
+      margin: 0 0 32px;
+      color: #56615d;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Vibe Travel Privacy Policy</h1>
+    <p class="updated">Last updated: ${PRIVACY_POLICY_UPDATED}</p>
+
+    <p>Vibe Travel is a mobile app from Revamp Studio. This policy explains what information the app uses, how it is handled, and how to contact us about privacy.</p>
+
+    <h2>Information you provide</h2>
+    <p>Vibe Travel asks for birth date, birth time, and birth city so it can generate travel map recommendations and city notes. These profile details are stored locally on your device. Vibe Travel does not require an account, and it does not ask for your name, email address, phone number, contacts, photos, or current device location.</p>
+
+    <h2>App activity and device information</h2>
+    <p>We use analytics to understand whether the app works well and which screens or destination features are used. This may include app interactions, search-related activity, approximate app lifecycle events, and device or installation identifiers. We do not enable session replay.</p>
+
+    <h2>Third-party services</h2>
+    <p>Vibe Travel uses service providers to support app functionality:</p>
+    <ul>
+      <li>Mapbox is used for birth city search and geocoding. City search text and related request details may be processed by Mapbox.</li>
+      <li>PostHog is used for product analytics such as screen views, app interactions, lifecycle events, and device or installation identifiers.</li>
+      <li>Cloudflare hosts the Vibe Travel advisory and city activity API used by the app.</li>
+      <li>Viator, Wikipedia, and Smartraveller data may be used to show activity ideas, city summaries, and travel advisory context.</li>
+    </ul>
+    <p>If you open a third-party activity link or external source from the app, that third-party site handles your visit under its own privacy policy.</p>
+
+    <h2>How information is used</h2>
+    <p>We use information to provide app functionality, generate destination recommendations, improve reliability, understand feature usage, and keep destination content useful. We do not sell personal information and we do not use the app to show ads.</p>
+
+    <h2>Data sharing</h2>
+    <p>Information may be shared with the service providers listed above only as needed to operate, analyse, and improve the app. These providers process information under their own terms and privacy policies.</p>
+
+    <h2>Security</h2>
+    <p>Network requests are sent over encrypted connections. Local profile details remain on your device unless you choose to share information with a third-party site outside the app.</p>
+
+    <h2>Retention and deletion</h2>
+    <p>Because Vibe Travel does not use accounts, local profile details can be removed by clearing the app's storage or uninstalling the app. For questions about analytics data or privacy requests, contact us at the email below.</p>
+
+    <h2>Children</h2>
+    <p>Vibe Travel is intended for adults. It is not directed to children.</p>
+
+    <h2>Changes to this policy</h2>
+    <p>We may update this policy when the app or its service providers change. The updated date at the top of this page will change when we make material updates.</p>
+
+    <h2>Contact</h2>
+    <p>Email: <a href="mailto:mitchell@revampstudio.com.au">mitchell@revampstudio.com.au</a></p>
+  </main>
+</body>
+</html>
+`, {
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'public, max-age=3600',
+      'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+      'x-content-type-options': 'nosniff',
     },
   })
 }

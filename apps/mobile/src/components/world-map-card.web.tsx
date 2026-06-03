@@ -185,6 +185,11 @@ function MapHost({ onReady }: { onReady: (map: MapboxMap) => void }) {
         map = new mapboxgl.Map({
           container: hostRef.current,
           style: STANDARD_STYLE,
+          config: {
+            basemap: {
+              lightPreset: 'day',
+            },
+          },
           center: [134, -25],
           zoom: 2,
           pitch: 0,
@@ -480,7 +485,7 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
 const styles = StyleSheet.create({
   shell: {
     flex: 1,
-    backgroundColor: '#081a31',
+    backgroundColor: '#DCE8F4',
   },
   mapFrame: {
     ...StyleSheet.absoluteFillObject,
@@ -514,5 +519,6 @@ const domStyles = {
   host: {
     width: '100%',
     height: '100%',
+    backgroundColor: '#DCE8F4',
   },
 }

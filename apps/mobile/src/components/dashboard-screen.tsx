@@ -13,14 +13,18 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import Animated, {
-  SlideInDown,
+  Easing,
+  FadeIn,
+  FadeOut,
   SlideInLeft,
   SlideInRight,
+  SlideInUp,
   SlideOutDown,
   SlideOutLeft,
   SlideOutRight,
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import Ionicons from '@expo/vector-icons/Ionicons'
 
 import { WorldMapCard } from '@/src/components/world-map-card'
 import { cityAnalyticsProperties, track } from '@/src/lib/analytics'
@@ -64,6 +68,8 @@ const INSIGHT_METHOD = 'Theme labels are based on Pythagorean numerology, then b
 
 type AdvisoryLevelMap = Record<string, 1 | 2 | 3 | 4 | null>
 type InsightTab = 'locations' | 'about'
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
 function getCycleYearLabel(personalYear: number): string {
   const baseYear = MASTER_YEAR_BASE.get(personalYear)
@@ -237,7 +243,12 @@ function FloatingButton({
       accessibilityRole="button"
       accessibilityState={{ expanded: active }}
       onPress={onPress}
-      style={[styles.floatingButton, compact ? styles.floatingButtonCompact : null, active ? styles.floatingButtonActive : null]}
+      style={({ pressed }) => [
+        styles.floatingButton,
+        compact ? styles.floatingButtonCompact : null,
+        active ? styles.floatingButtonActive : null,
+        pressed ? styles.floatingControlPressed : null,
+      ]}
     >
       <View style={[styles.floatingButtonContent, compact ? styles.floatingButtonContentCompact : null]}>
         <GearIcon active={active} />
@@ -252,40 +263,23 @@ function FloatingButton({
 }
 
 function GearIcon({ active }: { active: boolean }) {
-  if (Platform.OS === 'web') {
-    return (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
-          stroke={active ? '#FFFFFF' : 'rgba(31,36,48,0.72)'}
-          strokeWidth="1.5"
-        />
-        <path
-          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-          stroke={active ? '#FFFFFF' : 'rgba(31,36,48,0.72)'}
-          strokeWidth="1.5"
-        />
-      </svg>
-    )
-  }
-
-  return <Text style={[styles.floatingButtonIcon, active ? styles.floatingButtonIconActive : null]}>⚙</Text>
+  return (
+    <Ionicons
+      name="options-outline"
+      size={19}
+      color={active ? '#FFFFFF' : 'rgba(31,36,48,0.72)'}
+    />
+  )
 }
 
 function SparkleIcon({ active = false }: { active?: boolean }) {
-  if (Platform.OS === 'web') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-          stroke={active ? '#FFFFFF' : '#FF385C'}
-          strokeWidth="1.8"
-        />
-      </svg>
-    )
-  }
-
-  return <Text style={[styles.insightsTriggerIcon, active ? styles.insightsTriggerIconActive : null]}>✦</Text>
+  return (
+    <Ionicons
+      name="sparkles-outline"
+      size={18}
+      color={active ? '#FFFFFF' : colors.accent}
+    />
+  )
 }
 
 function InsightsTrigger({
@@ -306,7 +300,12 @@ function InsightsTrigger({
       accessibilityRole="button"
       accessibilityState={{ expanded: active }}
       onPress={onPress}
-      style={[styles.floatingButton, compact ? styles.floatingButtonCompact : null, active ? styles.insightsTriggerActive : null]}
+      style={({ pressed }) => [
+        styles.floatingButton,
+        compact ? styles.floatingButtonCompact : null,
+        active ? styles.insightsTriggerActive : null,
+        pressed ? styles.floatingControlPressed : null,
+      ]}
     >
       <View style={[styles.floatingButtonContent, compact ? styles.floatingButtonContentCompact : null]}>
         <SparkleIcon active={active} />
@@ -381,17 +380,20 @@ function Drawer({
   top: number
   variant?: 'left' | 'right' | 'sheet'
 }) {
+  const enterEasing = Easing.out(Easing.cubic)
+  const exitEasing = Easing.in(Easing.cubic)
+
   const entering = variant === 'left'
-    ? SlideInLeft.springify().damping(30).stiffness(260)
+    ? SlideInLeft.duration(240).easing(enterEasing)
     : variant === 'right'
-      ? SlideInRight.springify().damping(30).stiffness(260)
-      : SlideInDown.springify().damping(30).stiffness(260)
+      ? SlideInRight.duration(240).easing(enterEasing)
+      : SlideInUp.duration(260).easing(enterEasing)
 
   const exiting = variant === 'left'
-    ? SlideOutLeft.duration(180)
+    ? SlideOutLeft.duration(200).easing(exitEasing)
     : variant === 'right'
-      ? SlideOutRight.duration(180)
-      : SlideOutDown.duration(180)
+      ? SlideOutRight.duration(200).easing(exitEasing)
+      : SlideOutDown.duration(210).easing(exitEasing)
 
   return (
     <Animated.View
@@ -437,13 +439,35 @@ function Drawer({
           accessibilityRole="button"
           accessibilityLabel={`Close ${title}`}
           onPress={onClose}
-          style={styles.closeButton}
+          style={({ pressed }) => [styles.closeButton, pressed ? styles.closeButtonPressed : null]}
         >
-          <Text style={styles.closeButtonText}>Close</Text>
+          <Ionicons name="close" size={21} color={colors.text} />
         </Pressable>
       </View>
       {children}
     </Animated.View>
+  )
+}
+
+function DismissBackdrop({
+  accessibilityHint,
+  accessibilityLabel,
+  onPress,
+}: {
+  accessibilityHint: string
+  accessibilityLabel: string
+  onPress: () => void
+}) {
+  return (
+    <AnimatedPressable
+      accessibilityHint={accessibilityHint}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="button"
+      entering={FadeIn.duration(140).easing(Easing.out(Easing.quad))}
+      exiting={FadeOut.duration(120).easing(Easing.in(Easing.quad))}
+      onPress={onPress}
+      style={styles.backdrop}
+    />
   )
 }
 
@@ -888,7 +912,11 @@ function InsightsDrawer({
             setTab('locations')
             track('insights_tab_viewed', { tab: 'locations' })
           }}
-          style={[styles.segment, tab === 'locations' ? styles.segmentActive : null]}
+          style={({ pressed }) => [
+            styles.segment,
+            tab === 'locations' ? styles.segmentActive : null,
+            pressed ? styles.segmentPressed : null,
+          ]}
         >
           <Text style={[styles.segmentText, tab === 'locations' ? styles.segmentTextActive : null]}>Locations</Text>
         </Pressable>
@@ -901,7 +929,11 @@ function InsightsDrawer({
             setTab('about')
             track('insights_tab_viewed', { tab: 'about' })
           }}
-          style={[styles.segment, tab === 'about' ? styles.segmentActive : null]}
+          style={({ pressed }) => [
+            styles.segment,
+            tab === 'about' ? styles.segmentActive : null,
+            pressed ? styles.segmentPressed : null,
+          ]}
         >
           <Text style={[styles.segmentText, tab === 'about' ? styles.segmentTextActive : null]}>About</Text>
         </Pressable>
@@ -939,7 +971,11 @@ function InsightsDrawer({
                     onPress={() => onCityPress(city)}
                     onPressIn={() => setHighlightedCity(key)}
                     onPressOut={() => setHighlightedCity(null)}
-                    style={[styles.cityCard, isHighlighted ? styles.cityCardHighlighted : null]}
+                    style={({ pressed }) => [
+                      styles.cityCard,
+                      isHighlighted ? styles.cityCardHighlighted : null,
+                      pressed ? styles.cityCardPressed : null,
+                    ]}
                   >
                     <Text style={styles.cityCardTitle}>{city.name}</Text>
                     <Text style={styles.cityCardSubtitle}>{city.country}</Text>
@@ -995,7 +1031,11 @@ function InsightsDrawer({
                     onPress={() => onCityPress(city)}
                     onPressIn={() => setHighlightedCity(key)}
                     onPressOut={() => setHighlightedCity(null)}
-                    style={[styles.cityCard, isHighlighted ? styles.cityCardHighlighted : null]}
+                    style={({ pressed }) => [
+                      styles.cityCard,
+                      isHighlighted ? styles.cityCardHighlighted : null,
+                      pressed ? styles.cityCardPressed : null,
+                    ]}
                   >
                     <Text style={styles.cityCardTitle}>{city.name}</Text>
                     <Text style={styles.cityCardSubtitle}>{city.country}</Text>
@@ -1202,6 +1242,7 @@ function CityDrawer({
                       }}
                       style={styles.secondaryAction}
                     >
+                      <Ionicons name="open-outline" size={15} color="#FFFFFF" />
                       <Text style={styles.secondaryActionText}>View on Viator</Text>
                     </Pressable>
                   ) : null}
@@ -1349,15 +1390,13 @@ export function DashboardScreen() {
       </View>
 
       {activeUtilityPanel ? (
-        <Pressable
+        <DismissBackdrop
           accessibilityHint="Dismisses the open panel."
           accessibilityLabel="Dismiss panel"
-          accessibilityRole="button"
           onPress={() => {
             setActiveUtilityPanel(null)
             track('utility_panel_closed', { panel: activeUtilityPanel })
           }}
-          style={styles.backdrop}
         />
       ) : null}
 
@@ -1406,12 +1445,10 @@ export function DashboardScreen() {
       ) : null}
 
       {selectedCity ? (
-        <Pressable
+        <DismissBackdrop
           accessibilityHint="Dismisses the city details panel."
           accessibilityLabel="Dismiss city details"
-          accessibilityRole="button"
           onPress={closeCity}
-          style={styles.backdrop}
         />
       ) : null}
 
@@ -1481,14 +1518,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     borderColor: colors.accent,
   },
-  floatingButtonIcon: {
-    fontFamily: fonts.sans,
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.muted,
-  },
-  floatingButtonIconActive: {
-    color: '#FFFFFF',
+  floatingControlPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.97 }],
   },
   floatingButtonContent: {
     flexDirection: 'row',
@@ -1522,15 +1554,6 @@ const styles = StyleSheet.create({
   insightsTriggerActive: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
-  },
-  insightsTriggerIcon: {
-    fontFamily: fonts.sans,
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.accent,
-  },
-  insightsTriggerIconActive: {
-    color: '#FFFFFF',
   },
   visuallyHidden: {
     position: 'absolute',
@@ -1592,17 +1615,15 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     minHeight: 44,
+    minWidth: 44,
     borderRadius: 14,
-    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceSoft,
   },
-  closeButtonText: {
-    fontFamily: fonts.sans,
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
+  closeButtonPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.96 }],
   },
   drawerBody: {
     flex: 1,
@@ -1638,6 +1659,9 @@ const styles = StyleSheet.create({
   },
   secondaryAction: {
     alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -1852,6 +1876,10 @@ const styles = StyleSheet.create({
   segmentActive: {
     backgroundColor: colors.text,
   },
+  segmentPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }],
+  },
   segmentText: {
     fontFamily: fonts.sans,
     fontSize: 13,
@@ -1900,6 +1928,9 @@ const styles = StyleSheet.create({
   cityCardHighlighted: {
     borderColor: 'rgba(255, 56, 92, 0.4)',
     backgroundColor: '#FFF7F9',
+  },
+  cityCardPressed: {
+    transform: [{ scale: 0.985 }],
   },
   cityCardTitle: {
     fontFamily: fonts.serif,

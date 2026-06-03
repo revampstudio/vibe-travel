@@ -1,0 +1,55 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "version": "0.1.0",
+    "copyright": "2026 Revamp Studio",
+    "categories": [
+      "TRAVEL",
+      "LIFESTYLE"
+    ],
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "INFREQUENT_OR_MILD",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "INFREQUENT_OR_MILD",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "gambling": false,
+      "unrestrictedWebAccess": false,
+      "kidsAgeBand": null,
+      "ageRatingOverride": "NONE",
+      "koreaAgeRatingOverride": "NONE"
+    },
+    "info": {
+      "en-US": {
+        "title": "Vibe Travel Map",
+        "subtitle": "Travel ideas by birth details",
+        "description": "Vibe Travel turns your birth details into a personal travel map.\n\nAdd your birthday, birth time, and birth city to see destination ideas shaped by numerology, planetary lines, travel context, and local activity options. Explore a world map, compare suggested cities, and open detailed city pages with alignment notes, advisory context, and things to do.\n\nUse Vibe Travel to:\n\n- Build a personal map from your birth details.\n- Discover cities that match your current personal year.\n- Compare destination notes, planetary influences, and travel advisories.\n- Browse activity ideas for selected cities.\n\nVibe Travel is designed for exploration and reflection. Travel advisory and activity information can change, so always check official sources before booking or travelling.",
+        "keywords": [
+          "travel",
+          "trip planner",
+          "destinations",
+          "map",
+          "numerology",
+          "astrology",
+          "city guide",
+          "travel ideas"
+        ],
+        "releaseNotes": "Initial App Store release.",
+        "promoText": "Explore destination ideas shaped by birth date, birth time, city context, travel advisories, and local activity options.",
+        "supportUrl": "https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev/privacy",
+        "privacyPolicyUrl": "https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev/privacy"
+      }
+    },
+    "release": {
+      "automaticRelease": false,
+      "phasedRelease": false
+    }
+  }
+}

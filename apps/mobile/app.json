@@ -5,19 +5,34 @@
     "scheme": "vibetravel",
     "version": "0.1.0",
     "orientation": "portrait",
-    "icon": "./assets/brand/logo-512.png",
+    "icon": "./assets/brand/app-icon-1024.png",
     "platforms": [
       "ios",
       "android",
       "web"
     ],
     "ios": {
-      "icon": "./assets/brand/apple-touch-icon.png",
+      "bundleIdentifier": "com.mitchellrben.vibetravelmobile",
+      "icon": "./assets/brand/app-icon-1024.png",
+      "supportsTablet": false,
       "infoPlist": {
-        "MGLMapboxMetricsEnabledSettingShownInApp": true
+        "MGLMapboxMetricsEnabledSettingShownInApp": true,
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.mitchellrben.vibetravelmobile",
+      "permissions": [
+        "INTERNET",
+        "VIBRATE"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#F7F7F8",
         "foregroundImage": "./assets/brand/icon-192.png"
@@ -42,6 +57,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b494e6b2-7e34-4335-bc2b-ed909f10872d"
+      }
+    },
+    "owner": "mitchellrben"
   }
 }
