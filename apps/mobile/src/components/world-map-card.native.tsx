@@ -6,7 +6,6 @@ import Mapbox, {
   LineLayer,
   MapView,
   ShapeSource,
-  StyleURL,
   type Camera as MapboxCameraRef,
 } from '@rnmapbox/maps'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -28,6 +27,7 @@ const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? ''
 const INITIAL_CENTER: [number, number] = [8, 12]
 const INITIAL_ZOOM_LEVEL = 1.25
 const CITY_ZOOM_LEVEL = 4.8
+const LIGHT_MAP_STYLE_URL = 'mapbox://styles/mapbox/light-v11'
 const MAJOR_CITY_PRIORITY_WINDOW = 1200
 const MAJOR_CITY_PRIORITY_WEIGHT = 0.2
 const CITY_DECLUTTER_DEGREES = 1.8
@@ -214,7 +214,7 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
           <MapView
             style={StyleSheet.absoluteFillObject}
             projection="globe"
-            styleURL={StyleURL.Light}
+            styleURL={LIGHT_MAP_STYLE_URL}
             logoEnabled
             attributionEnabled
             compassEnabled={false}

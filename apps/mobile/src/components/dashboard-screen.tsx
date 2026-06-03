@@ -16,12 +16,10 @@ import Animated, {
   Easing,
   FadeIn,
   FadeOut,
-  SlideInLeft,
-  SlideInRight,
-  SlideInUp,
-  SlideOutDown,
-  SlideOutLeft,
-  SlideOutRight,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Ionicons from '@expo/vector-icons/Ionicons'
@@ -65,6 +63,10 @@ const ADVISORY_STYLES: Record<1 | 2 | 3 | 4, { panel: string, badgeBg: string, b
 }
 
 const INSIGHT_METHOD = 'Theme labels are based on Pythagorean numerology, then blended with your strongest map lines.'
+const DRAWER_OPEN_DURATION = 320
+const DRAWER_CLOSE_DURATION = 220
+const DRAWER_OPEN_EASING = Easing.bezier(0.22, 1, 0.36, 1)
+const DRAWER_CLOSE_EASING = Easing.bezier(0.4, 0, 1, 1)
 
 type AdvisoryLevelMap = Record<string, 1 | 2 | 3 | 4 | null>
 type InsightTab = 'locations' | 'about'
@@ -380,26 +382,40 @@ function Drawer({
   top: number
   variant?: 'left' | 'right' | 'sheet'
 }) {
-  const enterEasing = Easing.out(Easing.cubic)
-  const exitEasing = Easing.in(Easing.cubic)
+  const openProgress = useSharedValue(0)
+  const closedOffset = variant === 'sheet' ? height + 32 : width + 32
 
-  const entering = variant === 'left'
-    ? SlideInLeft.duration(240).easing(enterEasing)
-    : variant === 'right'
-      ? SlideInRight.duration(240).easing(enterEasing)
-      : SlideInUp.duration(260).easing(enterEasing)
+  useEffect(() => {
+    openProgress.value = 0
+    openProgress.value = withTiming(1, {
+      duration: DRAWER_OPEN_DURATION,
+      easing: DRAWER_OPEN_EASING,
+    })
+  }, [closedOffset, openProgress, variant])
 
-  const exiting = variant === 'left'
-    ? SlideOutLeft.duration(200).easing(exitEasing)
-    : variant === 'right'
-      ? SlideOutRight.duration(200).easing(exitEasing)
-      : SlideOutDown.duration(210).easing(exitEasing)
+  const animatedDrawerStyle = useAnimatedStyle(() => {
+    const hiddenDistance = closedOffset * (1 - openProgress.value)
+    const translateX = variant === 'left' ? -hiddenDistance : variant === 'right' ? hiddenDistance : 0
+    const translateY = variant === 'sheet' ? hiddenDistance : 0
+
+    return {
+      opacity: 0.98 + openProgress.value * 0.02,
+      transform: [{ translateX }, { translateY }],
+    }
+  }, [closedOffset, variant])
+
+  const closeWithAnimation = () => {
+    openProgress.value = withTiming(0, {
+      duration: DRAWER_CLOSE_DURATION,
+      easing: DRAWER_CLOSE_EASING,
+    }, (finished) => {
+      if (finished) runOnJS(onClose)()
+    })
+  }
 
   return (
     <Animated.View
       accessibilityViewIsModal
-      entering={entering}
-      exiting={exiting}
       importantForAccessibility="yes"
       style={[
         styles.drawer,
@@ -426,8 +442,10 @@ function Drawer({
             },
         variant === 'sheet' ? styles.drawerSheet : null,
         variant === 'left' ? styles.drawerLeft : null,
+        animatedDrawerStyle,
         ]}
-      onAccessibilityEscape={onClose}
+      onAccessibilityEscape={closeWithAnimation}
+      shouldRasterizeIOS
     >
       <View style={styles.drawerHeader}>
         <View style={styles.drawerHeaderCopy}>
@@ -438,7 +456,7 @@ function Drawer({
           accessibilityHint="Closes this panel and returns to the map."
           accessibilityRole="button"
           accessibilityLabel={`Close ${title}`}
-          onPress={onClose}
+          onPress={closeWithAnimation}
           style={({ pressed }) => [styles.closeButton, pressed ? styles.closeButtonPressed : null]}
         >
           <Ionicons name="close" size={21} color={colors.text} />
@@ -1476,7 +1494,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12, 18, 32, 0.22)',
+    backgroundColor: 'rgba(255, 255, 255, 0.26)',
   },
   topControls: {
     position: 'absolute',

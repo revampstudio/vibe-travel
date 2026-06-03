@@ -5,6 +5,7 @@
     "scheme": "vibetravel",
     "version": "0.1.1",
     "orientation": "portrait",
+    "userInterfaceStyle": "light",
     "icon": "./assets/brand/app-icon-1024.png",
     "platforms": [
       "ios",
