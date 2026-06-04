@@ -63,9 +63,9 @@ const ADVISORY_STYLES: Record<1 | 2 | 3 | 4, { panel: string, badgeBg: string, b
 }
 
 const INSIGHT_METHOD = 'Theme labels are based on Pythagorean numerology, then blended with your strongest map lines.'
-const DRAWER_OPEN_DURATION = 320
-const DRAWER_CLOSE_DURATION = 220
-const DRAWER_OPEN_EASING = Easing.bezier(0.22, 1, 0.36, 1)
+const DRAWER_OPEN_DURATION = 480
+const DRAWER_CLOSE_DURATION = 260
+const DRAWER_OPEN_EASING = Easing.bezier(0.32, 0, 0.18, 1)
 const DRAWER_CLOSE_EASING = Easing.bezier(0.4, 0, 1, 1)
 
 type AdvisoryLevelMap = Record<string, 1 | 2 | 3 | 4 | null>
@@ -399,7 +399,7 @@ function Drawer({
     const translateY = variant === 'sheet' ? hiddenDistance : 0
 
     return {
-      opacity: 0.98 + openProgress.value * 0.02,
+      opacity: 0.92 + openProgress.value * 0.08,
       transform: [{ translateX }, { translateY }],
     }
   }, [closedOffset, variant])
