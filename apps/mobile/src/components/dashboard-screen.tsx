@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   BackHandler,
   KeyboardAvoidingView,
@@ -385,13 +385,21 @@ function Drawer({
   const openProgress = useSharedValue(0)
   const closedOffset = variant === 'sheet' ? height + 32 : width + 32
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     openProgress.value = 0
     openProgress.value = withTiming(1, {
       duration: DRAWER_OPEN_DURATION,
       easing: DRAWER_OPEN_EASING,
     })
   }, [closedOffset, openProgress, variant])
+
+  const initialDrawerStyle = {
+    opacity: 0.92,
+    transform: [
+      { translateX: variant === 'left' ? -closedOffset : variant === 'right' ? closedOffset : 0 },
+      { translateY: variant === 'sheet' ? closedOffset : 0 },
+    ],
+  }
 
   const animatedDrawerStyle = useAnimatedStyle(() => {
     const hiddenDistance = closedOffset * (1 - openProgress.value)
@@ -442,6 +450,7 @@ function Drawer({
             },
         variant === 'sheet' ? styles.drawerSheet : null,
         variant === 'left' ? styles.drawerLeft : null,
+        initialDrawerStyle,
         animatedDrawerStyle,
         ]}
       onAccessibilityEscape={closeWithAnimation}
