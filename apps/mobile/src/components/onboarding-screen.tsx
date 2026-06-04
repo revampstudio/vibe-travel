@@ -16,6 +16,7 @@ import { preloadBirthCityAutocomplete, searchBirthCities, type GeoResult } from 
 import { enrichCitiesWithEnergy } from '@/src/lib/geo'
 import { calcSoulProfile } from '@/src/lib/numerology'
 import { MobileScrollScreen } from '@/src/components/mobile-scroll-screen'
+import { SkeletonBlock } from '@/src/components/skeleton'
 import { loadCities } from '@/src/data/loadCities'
 import { useStore } from '@/src/store/useStore'
 import type { BirthData } from '@/src/types'
@@ -72,6 +73,18 @@ function getBirthdayError(day: string, month: string, year: string): string | nu
   if (day.length > 2 || month.length > 2 || year.length !== 4) return 'Use DD, MM, and YYYY.'
   if (!normalizeBirthday(day, month, year)) return 'Enter a valid date in the past.'
   return null
+}
+
+function SearchResultsSkeleton() {
+  return (
+    <View style={styles.resultsList}>
+      {[0, 1, 2].map((item) => (
+        <View key={item} style={styles.resultRow}>
+          <SkeletonBlock height={15} width={item === 2 ? '56%' : '84%'} radius={radii.pill} />
+        </View>
+      ))}
+    </View>
+  )
 }
 
 export function OnboardingScreen() {
@@ -434,12 +447,7 @@ export function OnboardingScreen() {
               />
 
               {showResults && searchState === 'loading' ? (
-                <View style={styles.resultsList}>
-                  <View style={styles.resultRow}>
-                    <ActivityIndicator color={colors.accent} />
-                    <Text style={styles.resultStatusText}>Searching cities...</Text>
-                  </View>
-                </View>
+                <SearchResultsSkeleton />
               ) : null}
 
               {showResults && searchState === 'error' ? (

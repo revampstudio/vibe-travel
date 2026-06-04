@@ -3,6 +3,7 @@ import { Link } from 'expo-router'
 import { Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 
 import { MobileScrollScreen } from '@/src/components/mobile-scroll-screen'
+import { SkeletonBlock, SkeletonText } from '@/src/components/skeleton'
 import { cityAnalyticsProperties, track } from '@/src/lib/analytics'
 import { fetchTravelAdvisory, type TravelAdvisoryLookup } from '@/src/lib/travelAdvisory'
 import { getInterpretation } from '@/src/lib/interpretations'
@@ -41,6 +42,96 @@ const ADVISORY_STYLES: Record<1 | 2 | 3 | 4, { panel: string, badgeBg: string, b
   2: { panel: '#FFF8E8', badgeBg: '#FDE7B2', badgeText: '#9A6700' },
   3: { panel: '#FFF1E7', badgeBg: '#FCD0AE', badgeText: '#B54708' },
   4: { panel: '#FFF0F0', badgeBg: '#FEE4E2', badgeText: '#B42318' },
+}
+
+function CityDetailRouteSkeleton() {
+  return (
+    <MobileScrollScreen contentContainerStyle={styles.content}>
+      <View style={styles.stack}>
+        <View style={styles.hero}>
+          <View style={styles.heroBadgeRow}>
+            <SkeletonBlock height={30} width={116} radius={radii.pill} />
+          </View>
+          <SkeletonBlock height={42} width="58%" radius={radii.pill} />
+          <SkeletonBlock height={18} width="32%" radius={radii.pill} />
+
+          <View style={styles.quickFactsRow}>
+            {[0, 1, 2].map((item) => (
+              <View key={item} style={styles.quickFact}>
+                <SkeletonBlock height={10} width={72} radius={radii.pill} />
+                <SkeletonBlock height={16} width="62%" radius={radii.pill} />
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.alignmentBox}>
+            <View style={styles.alignmentRow}>
+              <SkeletonBlock height={11} width={82} radius={radii.pill} />
+              <SkeletonBlock height={16} width={44} radius={radii.pill} />
+            </View>
+            <SkeletonBlock height={8} radius={radii.pill} />
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <SkeletonBlock height={11} width={70} radius={radii.pill} />
+          <SkeletonBlock height={30} width="42%" radius={radii.pill} />
+          <SkeletonText lines={3} lineHeight={14} widths={['100%', '92%', '68%']} />
+        </View>
+
+        <ActivitiesSkeleton full />
+
+        <View style={styles.card}>
+          <SkeletonBlock height={11} width={74} radius={radii.pill} />
+          <SkeletonBlock height={30} width="36%" radius={radii.pill} />
+          <View style={styles.advisoryPanel}>
+            <View style={styles.advisoryHeader}>
+              <SkeletonBlock height={16} width="42%" radius={radii.pill} />
+              <SkeletonBlock height={28} width={78} radius={radii.pill} />
+            </View>
+            <SkeletonBlock height={16} width="56%" radius={radii.pill} />
+            <SkeletonText lines={2} lineHeight={14} widths={['94%', '64%']} />
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <SkeletonBlock height={11} width={106} radius={radii.pill} />
+          <SkeletonBlock height={30} width="44%" radius={radii.pill} />
+          {[0, 1, 2].map((item) => (
+            <View key={item} style={styles.influenceCard}>
+              <View style={styles.influenceHeader}>
+                <SkeletonBlock height={12} width={12} radius={radii.pill} />
+                <SkeletonBlock height={17} width="46%" radius={radii.pill} />
+              </View>
+              <SkeletonText lines={2} lineHeight={13} widths={['100%', '72%']} />
+            </View>
+          ))}
+        </View>
+      </View>
+    </MobileScrollScreen>
+  )
+}
+
+function ActivitiesSkeleton({ full = false }: { full?: boolean }) {
+  return (
+    <View style={styles.card}>
+      <SkeletonBlock height={11} width={82} radius={radii.pill} />
+      <SkeletonBlock height={30} width={full ? '34%' : '48%'} radius={radii.pill} />
+      <View style={styles.activitiesList}>
+        {[0, 1, 2].map((item) => (
+          <View key={item} style={styles.activityCard}>
+            <SkeletonBlock height={18} width={item === 1 ? '78%' : '92%'} radius={radii.pill} />
+            <View style={styles.activityMetaRow}>
+              <SkeletonBlock height={28} width={74} radius={radii.pill} />
+              <SkeletonBlock height={28} width={96} radius={radii.pill} />
+              <SkeletonBlock height={28} width={64} radius={radii.pill} />
+            </View>
+            <SkeletonText lines={2} lineHeight={13} widths={['100%', '64%']} />
+          </View>
+        ))}
+      </View>
+    </View>
+  )
 }
 
 function formatAdvisoryDate(value: string): string {
@@ -150,16 +241,7 @@ export function CityDetailScreen({
   }, [activitiesState, city])
 
   if (isHydrating) {
-    return (
-      <MobileScrollScreen contentContainerStyle={styles.content}>
-        <View style={styles.stack}>
-          <View style={styles.card}>
-            <Text style={styles.title}>Loading city details</Text>
-            <Text style={styles.body}>Restoring your saved map data for this route.</Text>
-          </View>
-        </View>
-      </MobileScrollScreen>
-    )
+    return <CityDetailRouteSkeleton />
   }
 
   if (!city) {
@@ -229,19 +311,19 @@ export function CityDetailScreen({
         <View style={styles.card}>
           <Text style={styles.sectionEyebrow}>Context</Text>
           <Text style={styles.sectionTitle}>Local vibe preview</Text>
-          <Text style={styles.body}>
-            {wikiLoading
-              ? 'Loading city context...'
-              : (wikiSummary ?? `${city.name} offers a compelling blend of atmosphere, pace, and cultural texture for an intentional stay.`)}
-          </Text>
+          {wikiLoading ? (
+            <SkeletonText lines={3} lineHeight={14} widths={['100%', '92%', '68%']} />
+          ) : (
+            <Text style={styles.body}>
+              {wikiSummary ?? `${city.name} offers a compelling blend of atmosphere, pace, and cultural texture for an intentional stay.`}
+            </Text>
+          )}
         </View>
 
-        <View style={styles.card}>
+        {activitiesState === null ? <ActivitiesSkeleton full /> : (
+          <View style={styles.card}>
           <Text style={styles.sectionEyebrow}>Experiences</Text>
           <Text style={styles.sectionTitle}>Things to do here</Text>
-          {activitiesState === null ? (
-            <Text style={styles.body}>Loading live Viator activities for this city...</Text>
-          ) : null}
           {activitiesState?.status === 'ok' && rankedActivities.length > 0 ? (
             <View style={styles.activitiesList}>
               {rankedActivities.map((activity) => (
@@ -307,7 +389,8 @@ export function CityDetailScreen({
           {activitiesState?.status === 'unavailable' ? (
             <Text style={styles.body}>Live activities are temporarily unavailable for this destination.</Text>
           ) : null}
-        </View>
+          </View>
+        )}
 
         {(advisory || advisoryState?.status === 'unavailable') && (
           <View style={styles.card}>

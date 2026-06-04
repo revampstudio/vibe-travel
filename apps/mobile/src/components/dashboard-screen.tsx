@@ -7,9 +7,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  type StyleProp,
   Text,
   TextInput,
   View,
+  type ViewStyle,
   useWindowDimensions,
 } from 'react-native'
 import Animated, {
@@ -24,6 +26,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Ionicons from '@expo/vector-icons/Ionicons'
 
+import { SkeletonBlock, SkeletonText } from '@/src/components/skeleton'
 import { WorldMapCard } from '@/src/components/world-map-card'
 import { cityAnalyticsProperties, track } from '@/src/lib/analytics'
 import { PLANET_COLORS, PLANETS, computeAstroLines } from '@/src/lib/astrocartography'
@@ -363,6 +366,18 @@ function LineStylePreview({ lineType }: { lineType: LineType }) {
   )
 }
 
+function SearchResultsSkeleton({ rows = 3, itemStyle }: { rows?: number, itemStyle: StyleProp<ViewStyle> }) {
+  return (
+    <View style={styles.resultsList}>
+      {Array.from({ length: rows }).map((_, index) => (
+        <View key={index} style={itemStyle}>
+          <SkeletonBlock height={15} width={index === rows - 1 ? '58%' : '84%'} radius={radii.pill} />
+        </View>
+      ))}
+    </View>
+  )
+}
+
 function Drawer({
   children,
   title,
@@ -691,11 +706,7 @@ function SettingsDrawer({
                 placeholder="Search city"
               />
               {showResults && searchState === 'loading' ? (
-                <View style={styles.resultsList}>
-                  <View style={styles.resultItem}>
-                    <Text style={styles.resultStatusText}>Searching cities...</Text>
-                  </View>
-                </View>
+                <SearchResultsSkeleton rows={4} itemStyle={styles.resultItem} />
               ) : null}
               {showResults && searchState === 'error' ? (
                 <View style={styles.resultsList}>
@@ -1215,17 +1226,30 @@ function CityDrawer({
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitleSmall}>City information</Text>
-          <Text style={styles.sectionCopySmall}>
-            {wikiLoading
-              ? 'Loading city context...'
-              : (summary ?? `${city.name} offers a compelling blend of atmosphere, pace, and cultural texture for an intentional stay.`)}
-          </Text>
+          {wikiLoading ? (
+            <SkeletonText lines={3} lineHeight={13} widths={['100%', '92%', '68%']} />
+          ) : (
+            <Text style={styles.sectionCopySmall}>
+              {summary ?? `${city.name} offers a compelling blend of atmosphere, pace, and cultural texture for an intentional stay.`}
+            </Text>
+          )}
         </View>
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitleSmall}>Things to do here</Text>
           {activitiesState === null ? (
-            <Text style={styles.sectionCopySmall}>Loading live Viator activities...</Text>
+            <View style={styles.activitiesListCompact}>
+              {[0, 1, 2].map((item) => (
+                <View key={item} style={styles.activityCardCompact}>
+                  <SkeletonBlock height={17} width={item === 1 ? '72%' : '92%'} radius={radii.pill} />
+                  <View style={styles.badgeRow}>
+                    <SkeletonBlock height={28} width={74} radius={radii.pill} />
+                    <SkeletonBlock height={28} width={88} radius={radii.pill} />
+                  </View>
+                  <SkeletonText lines={2} lineHeight={13} widths={['100%', '62%']} />
+                </View>
+              ))}
+            </View>
           ) : null}
           {activitiesState?.status === 'ok' && rankedActivities.length > 0 ? (
             <View style={styles.activitiesListCompact}>
@@ -1291,7 +1315,19 @@ function CityDrawer({
           ) : null}
         </View>
 
-        {advisory || advisoryState?.status === 'unavailable' ? (
+        {advisoryState === null ? (
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionTitleSmall}>Travel advisory</Text>
+            <View style={styles.advisoryPanel}>
+              <View style={styles.advisoryHeader}>
+                <SkeletonBlock height={16} width="44%" radius={radii.pill} />
+                <SkeletonBlock height={28} width={78} radius={radii.pill} />
+              </View>
+              <SkeletonBlock height={16} width="58%" radius={radii.pill} />
+              <SkeletonText lines={2} lineHeight={13} widths={['100%', '66%']} />
+            </View>
+          </View>
+        ) : advisory || advisoryState?.status === 'unavailable' ? (
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionTitleSmall}>Travel advisory</Text>
             {advisory ? (

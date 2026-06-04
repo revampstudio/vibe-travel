@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 
+import { SkeletonBlock, SkeletonText } from '@/src/components/skeleton'
 import { declutterCities } from '@/src/lib/geo'
 import { ENERGY_TIERS, LINE_TYPE_STYLES } from '@/src/lib/mapGuidance'
 import { useStore } from '@/src/store/useStore'
@@ -472,10 +473,11 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
 
       {renderableCities.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyStateTitle}>Map loading</Text>
-          <Text style={styles.emptyStateBody}>
-            Your astrocartography lines and city markers will appear as soon as your profile finishes hydrating.
-          </Text>
+          <View style={styles.mapLoadingHeader}>
+            <SkeletonBlock height={28} width="46%" radius={radii.pill} />
+            <SkeletonBlock height={28} width={72} radius={radii.pill} />
+          </View>
+          <SkeletonText lines={2} lineHeight={13} widths={['92%', '58%']} />
         </View>
       ) : null}
     </View>
@@ -497,7 +499,13 @@ const styles = StyleSheet.create({
     bottom: 96,
     borderRadius: 22,
     padding: 16,
+    gap: 12,
     backgroundColor: 'rgba(255,255,255,0.94)',
+  },
+  mapLoadingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   emptyStateTitle: {
     fontFamily: fonts.serif,

@@ -1,3 +1,5 @@
+import { readJSON, writeJSON } from '@/src/utils/storage'
+
 export interface WikiSummaryResult {
   summary: string
   pageTitle: string
@@ -55,6 +57,10 @@ const WIKI_ACTION_API_URL = 'https://en.wikipedia.org/w/api.php'
 const GEOSEARCH_RADIUS_METERS = 20_000
 const MAX_GEO_TITLES = 6
 const MAX_SEARCH_TITLES = 6
+const WIKI_CACHE_KEY = 'vibe-travel-wiki-summary-cache-v1'
+const WIKI_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 30
+const wikiMemoryCache = new Map<string, WikiSummaryCacheEntry>()
+const wikiInflightRequests = new Map<string, Promise<WikiSummaryResult | null>>()
 const COUNTRY_VARIANTS: Record<string, string[]> = {
   burma: ['burma', 'myanmar'],
   myanmar: ['myanmar', 'burma'],
@@ -76,6 +82,13 @@ const NON_PLACE_PATTERNS = [
   /\bhistory of\b/i,
 ]
 
+interface WikiSummaryCacheEntry {
+  result: WikiSummaryResult
+  cachedAt: number
+}
+
+type WikiSummaryCache = Record<string, WikiSummaryCacheEntry>
+
 export async function fetchCityWikiSummary(
   city: string,
   country: string,
@@ -87,6 +100,37 @@ export async function fetchCityWikiSummary(
   const normalizedCountry = country.trim()
   if (!normalizedCity || !normalizedCountry) return null
 
+  const cacheKey = cityCacheKey(normalizedCity, normalizedCountry, latitude, longitude)
+  const cached = readCachedSummary(cacheKey)
+  if (cached) return cached
+
+  const inflight = wikiInflightRequests.get(cacheKey)
+  if (inflight) return inflight
+
+  const request = fetchCityWikiSummaryUncached(
+    normalizedCity,
+    normalizedCountry,
+    latitude,
+    longitude,
+    signal,
+  ).then((result) => {
+    if (result) writeCachedSummary(cacheKey, result)
+    return result
+  }).finally(() => {
+    wikiInflightRequests.delete(cacheKey)
+  })
+
+  wikiInflightRequests.set(cacheKey, request)
+  return request
+}
+
+async function fetchCityWikiSummaryUncached(
+  normalizedCity: string,
+  normalizedCountry: string,
+  latitude?: number,
+  longitude?: number,
+  signal?: AbortSignal,
+): Promise<WikiSummaryResult | null> {
   const titleSources = await collectCandidateTitles(
     normalizedCity,
     normalizedCountry,
@@ -134,6 +178,48 @@ export async function fetchCityWikiSummary(
     pageTitle: bestCandidate.title,
     pageUrl: bestCandidate.url,
   }
+}
+
+function cityCacheKey(
+  city: string,
+  country: string,
+  latitude?: number,
+  longitude?: number,
+): string {
+  const lat = Number.isFinite(latitude) ? Number(latitude).toFixed(2) : ''
+  const lng = Number.isFinite(longitude) ? Number(longitude).toFixed(2) : ''
+  return normalizeText(`${city}|${country}|${lat}|${lng}`)
+}
+
+function readCachedSummary(cacheKey: string): WikiSummaryResult | null {
+  const memoryEntry = wikiMemoryCache.get(cacheKey)
+  if (isFreshCacheEntry(memoryEntry)) return memoryEntry.result
+
+  const persisted = readJSON<WikiSummaryCache>(WIKI_CACHE_KEY, {})
+  const persistedEntry = persisted[cacheKey]
+  if (!isFreshCacheEntry(persistedEntry)) return null
+
+  wikiMemoryCache.set(cacheKey, persistedEntry)
+  return persistedEntry.result
+}
+
+function writeCachedSummary(cacheKey: string, result: WikiSummaryResult): void {
+  const entry = { result, cachedAt: Date.now() }
+  wikiMemoryCache.set(cacheKey, entry)
+
+  const persisted = readJSON<WikiSummaryCache>(WIKI_CACHE_KEY, {})
+  persisted[cacheKey] = entry
+
+  const freshEntries = Object.fromEntries(
+    Object.entries(persisted)
+      .filter(([, value]) => isFreshCacheEntry(value))
+      .slice(-160),
+  )
+  writeJSON(WIKI_CACHE_KEY, freshEntries)
+}
+
+function isFreshCacheEntry(entry: WikiSummaryCacheEntry | undefined): entry is WikiSummaryCacheEntry {
+  return Boolean(entry && Date.now() - entry.cachedAt < WIKI_CACHE_TTL_MS)
 }
 
 function pickStrongGeoCandidate(
@@ -202,15 +288,16 @@ async function collectCandidateTitles(
   addTitle(`${city}, ${country}`, 'exact')
   addTitle(city, 'exact')
 
-  const disambiguationTitles = await fetchDisambiguationTitles(city, signal)
+  const [disambiguationTitles, nearbyTitles, searchTitles] = await Promise.all([
+    fetchDisambiguationTitles(city, signal),
+    Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? fetchGeoSearchTitles(latitude as number, longitude as number, signal)
+      : Promise.resolve([]),
+    fetchSearchTitles(city, country, signal),
+  ])
+
   disambiguationTitles.forEach((entry) => addTitle(entry.title, 'disambiguation', entry.searchSnippet))
-
-  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-    const nearbyTitles = await fetchGeoSearchTitles(latitude as number, longitude as number, signal)
-    nearbyTitles.slice(0, MAX_GEO_TITLES).forEach((entry) => addTitle(entry.title, 'geo'))
-  }
-
-  const searchTitles = await fetchSearchTitles(city, country, signal)
+  nearbyTitles.slice(0, MAX_GEO_TITLES).forEach((entry) => addTitle(entry.title, 'geo'))
   searchTitles.slice(0, MAX_SEARCH_TITLES).forEach((entry) => (
     addTitle(entry.title, 'search', entry.searchSnippet)
   ))
@@ -291,7 +378,7 @@ async function fetchSearchTitles(
   const results: Array<{ title: string, searchSnippet: string }> = []
   const seen = new Set<string>()
 
-  for (const query of queryTerms) {
+  const queryResults = await Promise.all(queryTerms.map(async (query) => {
     const params = new URLSearchParams({
       action: 'query',
       list: 'search',
@@ -302,10 +389,14 @@ async function fetchSearchTitles(
     })
 
     const response = await fetch(`${WIKI_ACTION_API_URL}?${params.toString()}`, { signal })
-    if (!response.ok) continue
+    if (!response.ok) return []
 
     const payload = await response.json() as WikiSearchApiResponse
-    for (const entry of payload.query?.search ?? []) {
+    return payload.query?.search ?? []
+  }))
+
+  for (const entries of queryResults) {
+    for (const entry of entries) {
       const title = entry.title?.trim() ?? ''
       const key = normalizeText(title)
       if (!title || !key || seen.has(key)) continue
