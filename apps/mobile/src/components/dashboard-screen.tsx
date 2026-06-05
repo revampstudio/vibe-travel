@@ -1250,6 +1250,7 @@ function CityDrawer({
   const { summary, loading: wikiLoading } = useWikiSummary(city)
   const advisoryState = useTravelAdvisory(city.country)
   const activitiesState = useCityActivities(city)
+  const selectedTripIntent = useStore((state) => state.selectedTripIntent)
   const insets = useSafeAreaInsets()
   const advisory = advisoryState?.status === 'ok' ? advisoryState.advisory : null
 
@@ -1270,8 +1271,8 @@ function CityDrawer({
   }, [city.energyScore, maxEnergy])
   const rankedActivities = useMemo(() => {
     if (activitiesState?.status !== 'ok') return []
-    return rankActivitiesForCity(city, activitiesState.data.activities, 5)
-  }, [activitiesState, city])
+    return rankActivitiesForCity(city, activitiesState.data.activities, 5, selectedTripIntent)
+  }, [activitiesState, city, selectedTripIntent])
 
   useEffect(() => {
     track('city_detail_viewed', cityAnalyticsProperties(city))

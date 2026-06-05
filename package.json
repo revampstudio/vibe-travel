@@ -8,6 +8,7 @@
     "android": "npm --prefix apps/mobile run android",
     "ios": "npm --prefix apps/mobile run ios",
     "doctor": "npm --prefix apps/mobile run doctor",
+    "city-tags:validate": "node scripts/validate-city-intent-tags.mjs",
     "worker:dev": "npm --prefix worker run dev",
     "worker:deploy": "npm --prefix worker run deploy",
     "worker:check": "npm --prefix worker run check",

@@ -1,4 +1,5 @@
 import type { SoulProfile, CityWithEnergy, Planet, LineType, TripIntent } from '../types/index'
+import { CITY_INTENT_TAGS } from '../data/cityIntentTags'
 import { getBundledTravelAdvisory } from './travelAdvisory'
 
 interface PlanetInfluence {
@@ -125,55 +126,6 @@ export const TRIP_INTENT_PROFILES: TripIntentProfile[] = [
 
 const PROFILE_BY_INTENT = new Map(TRIP_INTENT_PROFILES.map((profile) => [profile.id, profile]))
 
-const COUNTRY_TAGS: Record<string, string[]> = {
-  australia: ['surf', 'coast', 'adventure', 'nature', 'career'],
-  austria: ['culture', 'nature', 'romance'],
-  brazil: ['adventure', 'surf', 'coast', 'nightlife', 'culture'],
-  canada: ['adventure', 'nature', 'career'],
-  'costa rica': ['adventure', 'surf', 'coast', 'nature', 'wellness'],
-  croatia: ['coast', 'culture', 'romance', 'adventure'],
-  france: ['romance', 'culture', 'food', 'creative'],
-  georgia: ['adventure', 'food', 'culture', 'nature'],
-  greece: ['romance', 'coast', 'culture', 'spirituality'],
-  india: ['spirituality', 'retreat', 'culture', 'food'],
-  indonesia: ['spirituality', 'surf', 'coast', 'wellness', 'retreat'],
-  italy: ['romance', 'culture', 'food', 'creative'],
-  japan: ['culture', 'food', 'spirituality', 'city', 'career'],
-  mexico: ['culture', 'food', 'coast', 'romance', 'wellness'],
-  morocco: ['culture', 'adventure', 'food', 'spirituality'],
-  nepal: ['spirituality', 'adventure', 'nature', 'retreat'],
-  'new zealand': ['adventure', 'nature', 'coast', 'wellness'],
-  portugal: ['surf', 'coast', 'wellness', 'culture', 'romance'],
-  singapore: ['career', 'city', 'food', 'culture'],
-  spain: ['culture', 'food', 'romance', 'coast', 'nightlife'],
-  'sri lanka': ['surf', 'coast', 'spirituality', 'adventure', 'wellness'],
-  thailand: ['wellness', 'spirituality', 'coast', 'food', 'nightlife'],
-  turkey: ['culture', 'food', 'romance', 'spirituality'],
-  'united kingdom': ['career', 'culture', 'city', 'creative'],
-  'united states': ['career', 'adventure', 'culture', 'city', 'surf'],
-  vietnam: ['adventure', 'food', 'culture', 'coast', 'nightlife'],
-}
-
-const CITY_TAGS: Record<string, string[]> = {
-  'canggu|indonesia': ['surf', 'spirituality', 'wellness', 'coast'],
-  'denpasar|indonesia': ['spirituality', 'surf', 'wellness', 'coast'],
-  'ubud|indonesia': ['spirituality', 'retreat', 'wellness', 'nature'],
-  'colombo|sri lanka': ['surf', 'culture', 'coast'],
-  'galle|sri lanka': ['surf', 'coast', 'romance', 'culture'],
-  'kandy|sri lanka': ['spirituality', 'culture', 'nature'],
-  'hanoi|vietnam': ['adventure', 'food', 'culture', 'city'],
-  'ho chi minh city|vietnam': ['adventure', 'food', 'nightlife', 'city'],
-  'da nang|vietnam': ['adventure', 'coast', 'food'],
-  'lisbon|portugal': ['surf', 'coast', 'culture', 'romance', 'wellness'],
-  'porto|portugal': ['culture', 'food', 'romance'],
-  'kyoto|japan': ['spirituality', 'culture', 'food'],
-  'tokyo|japan': ['career', 'culture', 'food', 'city'],
-  'singapore|singapore': ['career', 'city', 'food'],
-  'barcelona|spain': ['culture', 'food', 'romance', 'coast', 'nightlife'],
-  'paris|france': ['romance', 'culture', 'food', 'creative'],
-  'rome|italy': ['romance', 'culture', 'food', 'spirituality'],
-}
-
 function cityKey(city: CityWithEnergy): string {
   return `${city.name}|${city.country}`
 }
@@ -192,18 +144,8 @@ function normalizedCityKey(city: CityWithEnergy): string {
   return `${normalizedKey(city.name)}|${normalizedKey(city.country)}`
 }
 
-function countryTags(city: CityWithEnergy): string[] {
-  const country = normalizedKey(city.country)
-  if (COUNTRY_TAGS[country]) return COUNTRY_TAGS[country]
-
-  if (country === 'united states of america') return COUNTRY_TAGS['united states'] ?? []
-  if (country === 'russian federation') return []
-
-  return []
-}
-
 function cityTags(city: CityWithEnergy): string[] {
-  return CITY_TAGS[normalizedCityKey(city)] ?? []
+  return CITY_INTENT_TAGS[normalizedCityKey(city)] ?? []
 }
 
 function getIntentProfile(intent: TripIntent): TripIntentProfile {
@@ -215,10 +157,10 @@ function getTripIntentAlignment(city: CityWithEnergy, intent: TripIntent): numbe
 
   const profile = getIntentProfile(intent)
   const wanted = new Set(profile.tags)
-  const tags = new Set([...countryTags(city), ...cityTags(city)])
+  const tags = new Set(cityTags(city))
   const requiredTags: Partial<Record<TripIntent, string[]>> = {
     spirituality: ['spirituality', 'retreat', 'wellness'],
-    surf: ['surf', 'coast'],
+    surf: ['surf'],
     romance: ['romance'],
     reset: ['wellness', 'retreat', 'spirituality'],
     culture: ['culture', 'food'],
@@ -294,7 +236,7 @@ function getSafetySuitability(city: CityWithEnergy): {
 }
 
 function practicalityAlignment(city: CityWithEnergy, intent: TripIntent): number {
-  const tags = new Set([...countryTags(city), ...cityTags(city)])
+  const tags = new Set(cityTags(city))
   if (tags.size === 0) return intent === 'open' ? 0.62 : 0.48
   if (tags.has('city') || tags.has('food') || tags.has('culture') || tags.has('wellness')) return 0.9
   return 0.76
@@ -620,7 +562,8 @@ export function rankCitiesByNumerology(
   const intentMatched = tripIntent === 'open'
     ? recommendable
     : recommendable.filter((candidate) => candidate.tripIntentAlignment > 0.5)
-  const primaryPool = intentMatched.length >= Math.min(limit, 4) ? intentMatched : recommendable
+  const primaryPool = intentMatched.length > 0 ? intentMatched : recommendable
+  const fillPool = tripIntent === 'open' ? recommendable : primaryPool
   const regionalCandidates = pickRegionalRepresentatives(primaryPool, popRank)
   const topEnergyCount = Math.min(3, limit)
   const topEnergy = [...regionalCandidates]
@@ -661,7 +604,7 @@ export function rankCitiesByNumerology(
     recommended.push(candidate)
   }
 
-  for (const candidate of recommendable) {
+  for (const candidate of fillPool) {
     if (recommended.length >= limit) break
     const key = cityKey(candidate.city)
     if (included.has(key)) continue

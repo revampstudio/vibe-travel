@@ -164,6 +164,7 @@ export function CityDetailScreen({
   const [advisoryState, setAdvisoryState] = useState<TravelAdvisoryLookup | null>(null)
   const [activitiesState, setActivitiesState] = useState<CityActivitiesLookup | null>(null)
   const cities = useStore((state) => state.cities)
+  const selectedTripIntent = useStore((state) => state.selectedTripIntent)
   const { width } = useWindowDimensions()
   const isCompact = width < 420
 
@@ -237,8 +238,8 @@ export function CityDetailScreen({
   }, [city, maxEnergy])
   const rankedActivities = useMemo(() => {
     if (!city || activitiesState?.status !== 'ok') return []
-    return rankActivitiesForCity(city, activitiesState.data.activities)
-  }, [activitiesState, city])
+    return rankActivitiesForCity(city, activitiesState.data.activities, 6, selectedTripIntent)
+  }, [activitiesState, city, selectedTripIntent])
 
   if (isHydrating) {
     return <CityDetailRouteSkeleton />

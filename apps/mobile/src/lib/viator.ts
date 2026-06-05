@@ -1,4 +1,4 @@
-import type { CityWithEnergy, LineType, Planet } from '@/src/types'
+import type { CityWithEnergy, LineType, Planet, TripIntent } from '@/src/types'
 
 const DEFAULT_TRAVEL_API_BASE = 'https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev'
 const ENDPOINT_PATH = '/api/v1/city-activities'
@@ -15,6 +15,7 @@ type ActivityTheme =
   | 'nature'
   | 'nightlife'
   | 'romance'
+  | 'surf'
   | 'spirituality'
   | 'wellness'
   | 'learning'
@@ -106,6 +107,10 @@ const THEME_DEFINITIONS: Record<ActivityTheme, ThemeDefinition> = {
     label: 'Romance',
     keywords: ['couples', 'cruise', 'date', 'romantic', 'sunset', 'wine', 'candle'],
   },
+  surf: {
+    label: 'Surf & coast',
+    keywords: ['beach', 'coast', 'island', 'paddleboard', 'snorkel', 'surf', 'swim', 'wave'],
+  },
   spirituality: {
     label: 'Spiritual depth',
     keywords: ['ceremony', 'church', 'meditation', 'mindfulness', 'sacred', 'spiritual', 'temple'],
@@ -142,6 +147,17 @@ const LINE_THEME_WEIGHTS: Record<LineType, Array<[ActivityTheme, number]>> = {
   IC: [['wellness', 0.5], ['spirituality', 0.4], ['food', 0.3]],
   ASC: [['adventure', 0.5], ['nature', 0.4], ['nightlife', 0.3]],
   DSC: [['romance', 0.5], ['community', 0.4], ['food', 0.3]],
+}
+
+const TRIP_INTENT_THEME_WEIGHTS: Record<TripIntent, Array<[ActivityTheme, number]>> = {
+  open: [],
+  adventure: [['adventure', 1.5], ['nature', 1.0], ['nightlife', 0.7], ['food', 0.4]],
+  spirituality: [['spirituality', 1.6], ['wellness', 1.1], ['learning', 0.5], ['nature', 0.4]],
+  surf: [['surf', 1.8], ['nature', 0.8], ['adventure', 0.6], ['wellness', 0.3]],
+  romance: [['romance', 1.6], ['food', 0.9], ['luxury', 0.7], ['art', 0.5]],
+  reset: [['wellness', 1.7], ['spirituality', 0.9], ['nature', 0.7], ['food', 0.3]],
+  culture: [['food', 1.2], ['art', 1.0], ['learning', 0.9], ['iconic', 0.6]],
+  career: [['learning', 1.2], ['iconic', 0.8], ['luxury', 0.5], ['community', 0.4]],
 }
 
 function resolveTravelApiBase(): string {
@@ -207,8 +223,9 @@ export function rankActivitiesForCity(
   city: CityWithEnergy,
   activities: CityActivity[],
   limit = 6,
+  tripIntent: TripIntent = 'open',
 ): RankedCityActivity[] {
-  const cityThemes = deriveCityThemeWeights(city)
+  const cityThemes = deriveCityThemeWeights(city, tripIntent)
   const cityThemeEntries = [...cityThemes.entries()].sort((a, b) => b[1] - a[1])
 
   return [...activities]
@@ -238,9 +255,13 @@ export function rankActivitiesForCity(
     .slice(0, limit)
 }
 
-function deriveCityThemeWeights(city: CityWithEnergy): Map<ActivityTheme, number> {
+function deriveCityThemeWeights(city: CityWithEnergy, tripIntent: TripIntent): Map<ActivityTheme, number> {
   const weights = new Map<ActivityTheme, number>()
   const seen = new Set<string>()
+
+  for (const [theme, weight] of TRIP_INTENT_THEME_WEIGHTS[tripIntent]) {
+    weights.set(theme, (weights.get(theme) ?? 0) + weight)
+  }
 
   for (const line of city.activeLines) {
     const key = `${line.planet}-${line.lineType}`
