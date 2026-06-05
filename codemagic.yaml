@@ -7,7 +7,7 @@ workflows:
       groups:
         - expo-ci
         - vibe-travel-mobile
-        - vibe-travel-posthog-api
+        - vibe-travel-posthog-api-2
         - vibe-travel-posthog-host
       node: latest
       xcode: latest
