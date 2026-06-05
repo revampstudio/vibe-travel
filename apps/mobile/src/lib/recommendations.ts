@@ -1,4 +1,5 @@
-import type { SoulProfile, CityWithEnergy, Planet, LineType } from '../types/index'
+import type { SoulProfile, CityWithEnergy, Planet, LineType, TripIntent } from '../types/index'
+import { getBundledTravelAdvisory } from './travelAdvisory'
 
 interface PlanetInfluence {
   planet: Planet
@@ -12,12 +13,28 @@ interface NumerologyNeeds {
   influences: PlanetInfluence[]
 }
 
+export interface TripIntentProfile {
+  id: TripIntent
+  label: string
+  shortLabel: string
+  description: string
+  tags: string[]
+  exampleRegions: string[]
+}
+
 export interface RankedCity {
   city: CityWithEnergy
   score: number
+  vibeFitScore: number
   goalAlignment: number
   energyAlignment: number
+  tripIntentAlignment: number
+  safetyAlignment: number
+  practicalityAlignment: number
   reason: string
+  practicalReason: string
+  advisoryLevel: 1 | 2 | 3 | 4 | null
+  recommendationTier: 'recommended' | 'caution' | 'notRecommended'
   matchingInfluences: { planet: Planet; lineType: LineType; label: string }[]
   isTopEnergyPick: boolean
 }
@@ -28,13 +45,259 @@ interface ScoredCandidate {
   matchingInfluences: { planet: Planet; lineType: LineType; label: string }[]
   normNumerology: number
   normEnergy: number
+  tripIntentAlignment: number
+  safetyAlignment: number
+  practicalityAlignment: number
+  advisoryLevel: 1 | 2 | 3 | 4 | null
+  recommendationTier: 'recommended' | 'caution' | 'notRecommended'
+  practicalReason: string
 }
 
 const REGIONAL_CLUSTER_KM = 350
 const MIN_VISIBLE_ENERGY = 0.01
 
+export const TRIP_INTENT_PROFILES: TripIntentProfile[] = [
+  {
+    id: 'open',
+    label: 'Open to anything',
+    shortLabel: 'Open',
+    description: 'Balanced recommendations that keep travel practicality ahead of raw alignment.',
+    tags: ['wellness', 'culture', 'nature', 'food', 'creative', 'city'],
+    exampleRegions: ['Portugal', 'Japan', 'Vietnam'],
+  },
+  {
+    id: 'adventure',
+    label: 'Adventure and fun',
+    shortLabel: 'Adventure',
+    description: 'Movement, discovery, nature, nightlife, and memorable activities.',
+    tags: ['adventure', 'nature', 'nightlife', 'food', 'city'],
+    exampleRegions: ['Vietnam', 'Costa Rica', 'New Zealand'],
+  },
+  {
+    id: 'spirituality',
+    label: 'Spirituality',
+    shortLabel: 'Spiritual',
+    description: 'Temples, retreats, ritual, reflection, and places with contemplative texture.',
+    tags: ['spirituality', 'wellness', 'retreat', 'nature'],
+    exampleRegions: ['Bali', 'Nepal', 'Japan'],
+  },
+  {
+    id: 'surf',
+    label: 'Surf and coast',
+    shortLabel: 'Surf',
+    description: 'Coastline, water, easygoing towns, and outdoor rhythm.',
+    tags: ['surf', 'coast', 'adventure', 'nature'],
+    exampleRegions: ['Sri Lanka', 'Bali', 'Portugal'],
+  },
+  {
+    id: 'romance',
+    label: 'Romance',
+    shortLabel: 'Romance',
+    description: 'Beauty, intimacy, slower travel, food, art, and partnership energy.',
+    tags: ['romance', 'food', 'culture', 'wellness'],
+    exampleRegions: ['Italy', 'France', 'Greece'],
+  },
+  {
+    id: 'reset',
+    label: 'Reset and wellness',
+    shortLabel: 'Reset',
+    description: 'Restorative places for health, quiet, softness, and nervous-system repair.',
+    tags: ['wellness', 'retreat', 'nature', 'spirituality'],
+    exampleRegions: ['Indonesia', 'Thailand', 'Portugal'],
+  },
+  {
+    id: 'culture',
+    label: 'Culture and food',
+    shortLabel: 'Culture',
+    description: 'Cities with strong food, art, history, and social texture.',
+    tags: ['culture', 'food', 'city', 'creative'],
+    exampleRegions: ['Japan', 'Mexico', 'Spain'],
+  },
+  {
+    id: 'career',
+    label: 'Career and momentum',
+    shortLabel: 'Career',
+    description: 'Places for visibility, ambition, networking, and practical opportunity.',
+    tags: ['career', 'city', 'creative', 'food'],
+    exampleRegions: ['Singapore', 'United States', 'United Kingdom'],
+  },
+]
+
+const PROFILE_BY_INTENT = new Map(TRIP_INTENT_PROFILES.map((profile) => [profile.id, profile]))
+
+const COUNTRY_TAGS: Record<string, string[]> = {
+  australia: ['surf', 'coast', 'adventure', 'nature', 'career'],
+  austria: ['culture', 'nature', 'romance'],
+  brazil: ['adventure', 'surf', 'coast', 'nightlife', 'culture'],
+  canada: ['adventure', 'nature', 'career'],
+  'costa rica': ['adventure', 'surf', 'coast', 'nature', 'wellness'],
+  croatia: ['coast', 'culture', 'romance', 'adventure'],
+  france: ['romance', 'culture', 'food', 'creative'],
+  georgia: ['adventure', 'food', 'culture', 'nature'],
+  greece: ['romance', 'coast', 'culture', 'spirituality'],
+  india: ['spirituality', 'retreat', 'culture', 'food'],
+  indonesia: ['spirituality', 'surf', 'coast', 'wellness', 'retreat'],
+  italy: ['romance', 'culture', 'food', 'creative'],
+  japan: ['culture', 'food', 'spirituality', 'city', 'career'],
+  mexico: ['culture', 'food', 'coast', 'romance', 'wellness'],
+  morocco: ['culture', 'adventure', 'food', 'spirituality'],
+  nepal: ['spirituality', 'adventure', 'nature', 'retreat'],
+  'new zealand': ['adventure', 'nature', 'coast', 'wellness'],
+  portugal: ['surf', 'coast', 'wellness', 'culture', 'romance'],
+  singapore: ['career', 'city', 'food', 'culture'],
+  spain: ['culture', 'food', 'romance', 'coast', 'nightlife'],
+  'sri lanka': ['surf', 'coast', 'spirituality', 'adventure', 'wellness'],
+  thailand: ['wellness', 'spirituality', 'coast', 'food', 'nightlife'],
+  turkey: ['culture', 'food', 'romance', 'spirituality'],
+  'united kingdom': ['career', 'culture', 'city', 'creative'],
+  'united states': ['career', 'adventure', 'culture', 'city', 'surf'],
+  vietnam: ['adventure', 'food', 'culture', 'coast', 'nightlife'],
+}
+
+const CITY_TAGS: Record<string, string[]> = {
+  'canggu|indonesia': ['surf', 'spirituality', 'wellness', 'coast'],
+  'denpasar|indonesia': ['spirituality', 'surf', 'wellness', 'coast'],
+  'ubud|indonesia': ['spirituality', 'retreat', 'wellness', 'nature'],
+  'colombo|sri lanka': ['surf', 'culture', 'coast'],
+  'galle|sri lanka': ['surf', 'coast', 'romance', 'culture'],
+  'kandy|sri lanka': ['spirituality', 'culture', 'nature'],
+  'hanoi|vietnam': ['adventure', 'food', 'culture', 'city'],
+  'ho chi minh city|vietnam': ['adventure', 'food', 'nightlife', 'city'],
+  'da nang|vietnam': ['adventure', 'coast', 'food'],
+  'lisbon|portugal': ['surf', 'coast', 'culture', 'romance', 'wellness'],
+  'porto|portugal': ['culture', 'food', 'romance'],
+  'kyoto|japan': ['spirituality', 'culture', 'food'],
+  'tokyo|japan': ['career', 'culture', 'food', 'city'],
+  'singapore|singapore': ['career', 'city', 'food'],
+  'barcelona|spain': ['culture', 'food', 'romance', 'coast', 'nightlife'],
+  'paris|france': ['romance', 'culture', 'food', 'creative'],
+  'rome|italy': ['romance', 'culture', 'food', 'spirituality'],
+}
+
 function cityKey(city: CityWithEnergy): string {
   return `${city.name}|${city.country}`
+}
+
+function normalizedKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function normalizedCityKey(city: CityWithEnergy): string {
+  return `${normalizedKey(city.name)}|${normalizedKey(city.country)}`
+}
+
+function countryTags(city: CityWithEnergy): string[] {
+  const country = normalizedKey(city.country)
+  if (COUNTRY_TAGS[country]) return COUNTRY_TAGS[country]
+
+  if (country === 'united states of america') return COUNTRY_TAGS['united states'] ?? []
+  if (country === 'russian federation') return []
+
+  return []
+}
+
+function cityTags(city: CityWithEnergy): string[] {
+  return CITY_TAGS[normalizedCityKey(city)] ?? []
+}
+
+function getIntentProfile(intent: TripIntent): TripIntentProfile {
+  return PROFILE_BY_INTENT.get(intent) ?? TRIP_INTENT_PROFILES[0]
+}
+
+function getTripIntentAlignment(city: CityWithEnergy, intent: TripIntent): number {
+  if (intent === 'open') return 0.82
+
+  const profile = getIntentProfile(intent)
+  const wanted = new Set(profile.tags)
+  const tags = new Set([...countryTags(city), ...cityTags(city)])
+  const requiredTags: Partial<Record<TripIntent, string[]>> = {
+    spirituality: ['spirituality', 'retreat', 'wellness'],
+    surf: ['surf', 'coast'],
+    romance: ['romance'],
+    reset: ['wellness', 'retreat', 'spirituality'],
+    culture: ['culture', 'food'],
+    career: ['career', 'city'],
+  }
+  const required = requiredTags[intent]
+  if (required && !required.some((tag) => tags.has(tag))) return 0.42
+
+  let matches = 0
+  for (const tag of tags) {
+    if (wanted.has(tag)) matches++
+  }
+
+  if (matches >= 3) return 1
+  if (matches === 2) return 0.86
+  if (matches === 1) return 0.7
+  return 0.42
+}
+
+function getSafetySuitability(city: CityWithEnergy): {
+  advisoryLevel: 1 | 2 | 3 | 4 | null
+  safetyAlignment: number
+  recommendationTier: 'recommended' | 'caution' | 'notRecommended'
+  practicalReason: string
+} {
+  const advisory = getBundledTravelAdvisory(city.country)
+  if (advisory.status !== 'ok') {
+    return {
+      advisoryLevel: null,
+      safetyAlignment: 0.62,
+      recommendationTier: 'caution',
+      practicalReason: 'Travel advisory was not matched, so this stays below verified options.',
+    }
+  }
+
+  switch (advisory.advisory.adviceLevel) {
+    case 1:
+      return {
+        advisoryLevel: 1,
+        safetyAlignment: 1,
+        recommendationTier: 'recommended',
+        practicalReason: 'Normal travel-advisory level supports this as a practical recommendation.',
+      }
+    case 2:
+      return {
+        advisoryLevel: 2,
+        safetyAlignment: 0.82,
+        recommendationTier: 'caution',
+        practicalReason: 'Good match, with a caution badge because the advisory asks for extra care.',
+      }
+    case 3:
+      return {
+        advisoryLevel: 3,
+        safetyAlignment: 0.18,
+        recommendationTier: 'notRecommended',
+        practicalReason: 'Strong alignment, but not a default trip recommendation while advice is reconsider travel.',
+      }
+    case 4:
+      return {
+        advisoryLevel: 4,
+        safetyAlignment: 0.04,
+        recommendationTier: 'notRecommended',
+        practicalReason: 'Strong alignment only. The current advisory says do not travel, so it is kept out of recommended picks.',
+      }
+    default:
+      return {
+        advisoryLevel: null,
+        safetyAlignment: 0.62,
+        recommendationTier: 'caution',
+        practicalReason: 'Travel advisory was not matched, so this stays below verified options.',
+      }
+  }
+}
+
+function practicalityAlignment(city: CityWithEnergy, intent: TripIntent): number {
+  const tags = new Set([...countryTags(city), ...cityTags(city)])
+  if (tags.size === 0) return intent === 'open' ? 0.62 : 0.48
+  if (tags.has('city') || tags.has('food') || tags.has('culture') || tags.has('wellness')) return 0.9
+  return 0.76
 }
 
 function toRad(deg: number): number {
@@ -285,6 +548,7 @@ export function getNumerologyNeeds(profile: SoulProfile): NumerologyNeeds {
 export function rankCitiesByNumerology(
   cities: CityWithEnergy[],
   profile: SoulProfile,
+  tripIntent: TripIntent = 'open',
   limit = 8,
 ): RankedCity[] {
   const needs = getNumerologyNeeds(profile)
@@ -326,17 +590,41 @@ export function rankCitiesByNumerology(
       const normNumerology = maxNumerology > 0 ? Math.min(1, numerologyScore / maxNumerology) : 0
       const normEnergy = city.energyScore / maxEnergy
       const score = normNumerology * 0.6 + normEnergy * 0.4
+      const tripIntentAlignment = getTripIntentAlignment(city, tripIntent)
+      const safety = getSafetySuitability(city)
+      const practicality = practicalityAlignment(city, tripIntent)
+      const vibeFitScore = score
+        * (0.48 + tripIntentAlignment * 0.52)
+        * (0.5 + practicality * 0.5)
+        * safety.safetyAlignment
 
-      return { city, score, matchingInfluences, normNumerology, normEnergy }
+      return {
+        city,
+        score: vibeFitScore,
+        matchingInfluences,
+        normNumerology,
+        normEnergy,
+        tripIntentAlignment,
+        safetyAlignment: safety.safetyAlignment,
+        practicalityAlignment: practicality,
+        advisoryLevel: safety.advisoryLevel,
+        recommendationTier: safety.recommendationTier,
+        practicalReason: safety.practicalReason,
+      }
     })
     .filter((candidate) => candidate.normEnergy >= MIN_VISIBLE_ENERGY)
     .sort((a, b) => b.score - a.score)
 
   const popRank = populationRankMap(cities)
-  const regionalCandidates = pickRegionalRepresentatives(scored, popRank)
+  const recommendable = scored.filter((candidate) => candidate.recommendationTier !== 'notRecommended')
+  const intentMatched = tripIntent === 'open'
+    ? recommendable
+    : recommendable.filter((candidate) => candidate.tripIntentAlignment > 0.5)
+  const primaryPool = intentMatched.length >= Math.min(limit, 4) ? intentMatched : recommendable
+  const regionalCandidates = pickRegionalRepresentatives(primaryPool, popRank)
   const topEnergyCount = Math.min(3, limit)
   const topEnergy = [...regionalCandidates]
-    .sort((a, b) => b.normEnergy - a.normEnergy)
+    .sort((a, b) => b.score - a.score)
     .slice(0, topEnergyCount)
   const topEnergyKeys = new Set(topEnergy.map((s) => cityKey(s.city)))
   const hasPeakEnergyCities = topEnergy.some((s) => s.normEnergy >= 0.95)
@@ -373,7 +661,7 @@ export function rankCitiesByNumerology(
     recommended.push(candidate)
   }
 
-  for (const candidate of scored) {
+  for (const candidate of recommendable) {
     if (recommended.length >= limit) break
     const key = cityKey(candidate.city)
     if (included.has(key)) continue
@@ -381,29 +669,92 @@ export function rankCitiesByNumerology(
     recommended.push(candidate)
   }
 
-  const ordered = [...recommended].sort((a, b) => b.normEnergy - a.normEnergy || b.score - a.score)
+  if (recommended.length === 0) {
+    for (const candidate of scored) {
+      if (recommended.length >= limit) break
+      const key = cityKey(candidate.city)
+      if (included.has(key)) continue
+      included.add(key)
+      recommended.push(candidate)
+    }
+  }
 
-  return ordered.map(({ city, score, matchingInfluences, normNumerology, normEnergy }) => {
+  const ordered = [...recommended].sort((a, b) => b.score - a.score || b.normEnergy - a.normEnergy)
+
+  return ordered.map((candidate) => {
+    const {
+      city,
+      score,
+      matchingInfluences,
+      normNumerology,
+      normEnergy,
+      tripIntentAlignment,
+      safetyAlignment,
+      practicalityAlignment: practicalFit,
+      advisoryLevel,
+      recommendationTier,
+      practicalReason,
+    } = candidate
     const key = cityKey(city)
     const isTopEnergyPick = topEnergyKeys.has(key)
     let reason: string
     if (matchingInfluences.length >= 2) {
-      reason = `Strong ${needs.theme.toLowerCase()} energy - ${matchingInfluences[0].label} and ${matchingInfluences[1].label} align with your year.`
+      reason = `${getIntentProfile(tripIntent).shortLabel} fit with ${matchingInfluences[0].label} and ${matchingInfluences[1].label} supporting your ${needs.theme.toLowerCase()} cycle.`
     } else if (matchingInfluences.length === 1) {
-      reason = `${matchingInfluences[0].label} supports your ${needs.theme.toLowerCase()} journey this year.`
+      reason = `${matchingInfluences[0].label} supports your ${needs.theme.toLowerCase()} cycle, with practical fit for this trip intent.`
     } else if (isTopEnergyPick) {
-      reason = 'Top raw-energy city on your map with strong overall alignment potential.'
+      reason = 'High practical Vibe Fit with strong overall map alignment.'
     } else {
-      reason = `High energy alignment complements your ${needs.theme.toLowerCase()} cycle.`
+      reason = `Practical destination fit complements your ${needs.theme.toLowerCase()} cycle.`
     }
     return {
       city,
       score,
+      vibeFitScore: score,
       goalAlignment: normNumerology,
       energyAlignment: normEnergy,
+      tripIntentAlignment,
+      safetyAlignment,
+      practicalityAlignment: practicalFit,
       reason,
+      practicalReason,
+      advisoryLevel,
+      recommendationTier,
       matchingInfluences,
       isTopEnergyPick,
     }
   })
+}
+
+export function scoreCityForTrip(
+  city: CityWithEnergy,
+  profile: SoulProfile | null,
+  tripIntent: TripIntent = 'open',
+  maxEnergy = 1,
+): number {
+  const energy = maxEnergy > 0 ? city.energyScore / maxEnergy : city.energyScore
+  const safety = getSafetySuitability(city)
+  const intentFit = getTripIntentAlignment(city, tripIntent)
+  const practicalFit = practicalityAlignment(city, tripIntent)
+  let goalFit = 0
+
+  if (profile) {
+    const needs = getNumerologyNeeds(profile)
+    const influenceMap = new Map<string, number>()
+    for (const inf of needs.influences) influenceMap.set(`${inf.planet}-${inf.lineType}`, inf.weight)
+
+    const seen = new Set<string>()
+    let numerologyScore = 0
+    for (const line of city.activeLines) {
+      const key = `${line.planet}-${line.lineType}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      numerologyScore += influenceMap.get(key) ?? 0
+    }
+    const maxNumerology = needs.influences[0]?.weight ?? 1
+    goalFit = maxNumerology > 0 ? Math.min(1, numerologyScore / maxNumerology) : 0
+  }
+
+  const astroFit = goalFit * 0.6 + energy * 0.4
+  return astroFit * (0.48 + intentFit * 0.52) * (0.5 + practicalFit * 0.5) * safety.safetyAlignment
 }

@@ -32,6 +32,7 @@ type AnalyticsEvent =
   | 'city_detail_closed'
   | 'activity_link_opened'
   | 'insights_tab_viewed'
+  | 'trip_intent_selected'
 
 export function track(event: AnalyticsEvent, properties?: PostHogEventProperties) {
   if (!posthog) return

@@ -35,13 +35,13 @@ import { enrichCitiesWithEnergy } from '@/src/lib/geo'
 import { getInterpretation } from '@/src/lib/interpretations'
 import { ENERGY_TIERS, LINE_TYPE_STYLES } from '@/src/lib/mapGuidance'
 import { calcSoulProfile } from '@/src/lib/numerology'
-import { getNumerologyNeeds, rankCitiesByNumerology } from '@/src/lib/recommendations'
+import { TRIP_INTENT_PROFILES, getNumerologyNeeds, rankCitiesByNumerology } from '@/src/lib/recommendations'
 import { fetchTravelAdvisory, type TravelAdvisoryLookup } from '@/src/lib/travelAdvisory'
 import { fetchCityActivities, rankActivitiesForCity } from '@/src/lib/viator'
 import { fetchCityWikiSummary } from '@/src/lib/wiki'
 import { loadCities } from '@/src/data/loadCities'
 import { useStore } from '@/src/store/useStore'
-import type { BirthData, CityWithEnergy, LineType, Planet, UtilityPanelState } from '@/src/types'
+import type { BirthData, CityWithEnergy, LineType, Planet, TripIntent, UtilityPanelState } from '@/src/types'
 import { colors, fonts, radii, shadows } from '@/src/theme'
 import { cityKey } from '@/src/utils/cityKey'
 
@@ -513,6 +513,45 @@ function DismissBackdrop({
   )
 }
 
+function TripIntentSelector({
+  selected,
+  onSelect,
+}: {
+  selected: TripIntent
+  onSelect: (intent: TripIntent) => void
+}) {
+  return (
+    <View style={styles.intentPanel}>
+      <View style={styles.intentPanelHeader}>
+        <Text style={styles.intentHeading}>Trip intent</Text>
+        <Text style={styles.intentSubheading}>Recommendations blend intent, safety, and your map lines.</Text>
+      </View>
+      <View style={styles.intentWrap}>
+        {TRIP_INTENT_PROFILES.map((profile) => {
+          const active = profile.id === selected
+          return (
+            <Pressable
+              accessibilityHint={profile.description}
+              accessibilityLabel={profile.label}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              key={profile.id}
+              onPress={() => onSelect(profile.id)}
+              style={({ pressed }) => [
+                styles.intentChip,
+                active ? styles.intentChipActive : null,
+                pressed ? styles.segmentPressed : null,
+              ]}
+            >
+              <Text style={[styles.intentChipText, active ? styles.intentChipTextActive : null]}>{profile.shortLabel}</Text>
+            </Pressable>
+          )
+        })}
+      </View>
+    </View>
+  )
+}
+
 function SettingsDrawer({
   width,
   height,
@@ -826,12 +865,25 @@ function InsightsDrawer({
   const cities = useStore((state) => state.cities)
   const highlightedCity = useStore((state) => state.highlightedCity)
   const setHighlightedCity = useStore((state) => state.setHighlightedCity)
+  const selectedTripIntent = useStore((state) => state.selectedTripIntent)
+  const setSelectedTripIntent = useStore((state) => state.setSelectedTripIntent)
   const insets = useSafeAreaInsets()
   const [tab, setTab] = useState<InsightTab>('locations')
   const [advisoryLevelsByCountry, setAdvisoryLevelsByCountry] = useState<AdvisoryLevelMap>({})
 
   const needs = useMemo(() => (profile ? getNumerologyNeeds(profile) : null), [profile])
-  const ranked = useMemo(() => (profile ? rankCitiesByNumerology(cities, profile) : []), [cities, profile])
+  const ranked = useMemo(
+    () => (profile ? rankCitiesByNumerology(cities, profile, selectedTripIntent, 12) : []),
+    [cities, profile, selectedTripIntent],
+  )
+  const rawRanked = useMemo(
+    () => (profile ? rankCitiesByNumerology(cities, profile, 'open', 12) : []),
+    [cities, profile],
+  )
+  const selectedIntentProfile = useMemo(
+    () => TRIP_INTENT_PROFILES.find((item) => item.id === selectedTripIntent) ?? TRIP_INTENT_PROFILES[0],
+    [selectedTripIntent],
+  )
   const focusAreas = useMemo(() => getFocusAreas(profile?.personalYear ?? 1), [profile?.personalYear])
 
   const coreNumbers = useMemo(() => {
@@ -878,21 +930,21 @@ function InsightsDrawer({
     ]
   }, [profile])
 
-  const yearlyBest = useMemo(() => {
+  const bestTripMatches = useMemo(() => {
     return [...ranked]
-      .sort((a, b) => b.goalAlignment - a.goalAlignment || b.score - a.score)
-      .filter((item) => item.goalAlignment > 0 || item.matchingInfluences.length > 0)
+      .filter((item) => item.recommendationTier !== 'notRecommended')
+      .sort((a, b) => b.vibeFitScore - a.vibeFitScore || b.goalAlignment - a.goalAlignment)
       .slice(0, 6)
   }, [ranked])
 
-  const overallBest = useMemo(
-    () => [...ranked].sort((a, b) => b.energyAlignment - a.energyAlignment || b.score - a.score).slice(0, 6),
-    [ranked],
+  const rawAlignmentBest = useMemo(
+    () => [...rawRanked].sort((a, b) => b.energyAlignment - a.energyAlignment || b.goalAlignment - a.goalAlignment).slice(0, 6),
+    [rawRanked],
   )
 
   const visibleCountries = useMemo(
-    () => Array.from(new Set([...yearlyBest, ...overallBest].map((item) => item.city.country))),
-    [overallBest, yearlyBest],
+    () => Array.from(new Set([...bestTripMatches, ...rawAlignmentBest].map((item) => item.city.country))),
+    [bestTripMatches, rawAlignmentBest],
   )
 
   useEffect(() => {
@@ -985,19 +1037,33 @@ function InsightsDrawer({
       >
         {tab === 'locations' ? (
           <>
+            <TripIntentSelector
+              selected={selectedTripIntent}
+              onSelect={(intent) => {
+                setSelectedTripIntent(intent)
+                track('trip_intent_selected', { intent })
+              }}
+            />
+
             <View style={styles.infoCard}>
-              <Text style={styles.infoTitle}>Why these places lead</Text>
+              <Text style={styles.infoTitle}>Best matches for your trip</Text>
               <Text style={styles.infoBody}>
+                {selectedIntentProfile.label}: {selectedIntentProfile.description}
+              </Text>
+              <Text style={styles.infoFootnote}>
                 Year {profile.personalYear} ({profile.lifeStage}): {needs.description}
               </Text>
             </View>
 
             <View style={styles.listSection}>
-              <Text style={styles.sectionTitleSmall}>Best for this year</Text>
-              <Text style={styles.sectionCopySmall}>The clearest matches for your current cycle and line pattern.</Text>
-              {yearlyBest.map(({ city, reason, goalAlignment, energyAlignment, matchingInfluences }) => {
+              <Text style={styles.sectionTitleSmall}>Vibe Fit recommendations</Text>
+              <Text style={styles.sectionCopySmall}>Practical places for this trip intent, filtered through safety, numerology, and line pattern.</Text>
+              {bestTripMatches.length === 0 ? (
+                <Text style={styles.sectionCopySmall}>No practical recommendations are available for this map yet. Try another trip intent or use the raw alignment lens below.</Text>
+              ) : null}
+              {bestTripMatches.map(({ city, reason, practicalReason, vibeFitScore, goalAlignment, energyAlignment, tripIntentAlignment, advisoryLevel, matchingInfluences }) => {
                 const key = cityKey(city)
-                const advisoryLevel = advisoryLevelsByCountry[city.country]
+                const liveAdvisoryLevel = advisoryLevelsByCountry[city.country] ?? advisoryLevel
                 const isHighlighted = highlightedCity === key
 
                 return (
@@ -1019,15 +1085,18 @@ function InsightsDrawer({
                     <Text style={styles.cityCardSubtitle}>{city.country}</Text>
                     <View style={styles.badgeRow}>
                       <View style={styles.badgeAccent}>
-                        <Text style={styles.badgeAccentText}>Yearly {Math.round(goalAlignment * 100)}%</Text>
+                        <Text style={styles.badgeAccentText}>Vibe Fit {Math.round(vibeFitScore * 100)}%</Text>
+                      </View>
+                      <View style={styles.badgeSuccess}>
+                        <Text style={styles.badgeSuccessText}>Intent {Math.round(tripIntentAlignment * 100)}%</Text>
                       </View>
                       <View style={styles.badgeNeutral}>
-                        <Text style={styles.badgeNeutralText}>Energy {Math.round(energyAlignment * 100)}%</Text>
+                        <Text style={styles.badgeNeutralText}>Year {Math.round(goalAlignment * 100)}%</Text>
                       </View>
-                      {advisoryLevel ? (
-                        <View style={[styles.badgeNeutral, { backgroundColor: ADVISORY_STYLES[advisoryLevel].panel }]}>
-                          <Text style={[styles.badgeNeutralText, { color: ADVISORY_STYLES[advisoryLevel].badgeText }]}>
-                            Level {advisoryLevel}
+                      {liveAdvisoryLevel ? (
+                        <View style={[styles.badgeNeutral, { backgroundColor: ADVISORY_STYLES[liveAdvisoryLevel].panel }]}>
+                          <Text style={[styles.badgeNeutralText, { color: ADVISORY_STYLES[liveAdvisoryLevel].badgeText }]}>
+                            Level {liveAdvisoryLevel}
                           </Text>
                         </View>
                       ) : null}
@@ -1047,17 +1116,21 @@ function InsightsDrawer({
                       </View>
                     ) : null}
                     <Text style={styles.cityCardBody}>{reason}</Text>
+                    <Text style={styles.cityCardBody}>{practicalReason}</Text>
                   </Pressable>
                 )
               })}
             </View>
 
             <View style={styles.listSection}>
-              <Text style={styles.sectionTitleSmall}>Highest alignment overall</Text>
-              <Text style={styles.sectionCopySmall}>Strongest places on the map regardless of your current year.</Text>
-              {overallBest.map(({ city, reason, energyAlignment, goalAlignment }) => {
+              <Text style={styles.sectionTitleSmall}>Raw alignment lens</Text>
+              <Text style={styles.sectionCopySmall}>Strong energy signals remain visible, but unsafe places are not treated as default trip recommendations.</Text>
+              {rawAlignmentBest.length === 0 ? (
+                <Text style={styles.sectionCopySmall}>No active planetary-line cities were found for this map.</Text>
+              ) : null}
+              {rawAlignmentBest.map(({ city, reason, practicalReason, energyAlignment, goalAlignment, advisoryLevel, recommendationTier }) => {
                 const key = cityKey(city)
-                const advisoryLevel = advisoryLevelsByCountry[city.country]
+                const liveAdvisoryLevel = advisoryLevelsByCountry[city.country] ?? advisoryLevel
                 const isHighlighted = highlightedCity === key
 
                 return (
@@ -1081,20 +1154,26 @@ function InsightsDrawer({
                       <View style={styles.badgeSuccess}>
                         <Text style={styles.badgeSuccessText}>Energy {Math.round(energyAlignment * 100)}%</Text>
                       </View>
+                      {recommendationTier === 'notRecommended' ? (
+                        <View style={[styles.badgeNeutral, { backgroundColor: '#FFF0F0' }]}>
+                          <Text style={[styles.badgeNeutralText, { color: colors.danger }]}>Not recommended now</Text>
+                        </View>
+                      ) : null}
                       {goalAlignment > 0 ? (
                         <View style={styles.badgeAccent}>
                           <Text style={styles.badgeAccentText}>Yearly {Math.round(goalAlignment * 100)}%</Text>
                         </View>
                       ) : null}
-                      {advisoryLevel ? (
-                        <View style={[styles.badgeNeutral, { backgroundColor: ADVISORY_STYLES[advisoryLevel].panel }]}>
-                          <Text style={[styles.badgeNeutralText, { color: ADVISORY_STYLES[advisoryLevel].badgeText }]}>
-                            Level {advisoryLevel}
+                      {liveAdvisoryLevel ? (
+                        <View style={[styles.badgeNeutral, { backgroundColor: ADVISORY_STYLES[liveAdvisoryLevel].panel }]}>
+                          <Text style={[styles.badgeNeutralText, { color: ADVISORY_STYLES[liveAdvisoryLevel].badgeText }]}>
+                            Level {liveAdvisoryLevel}
                           </Text>
                         </View>
                       ) : null}
                     </View>
                     <Text style={styles.cityCardBody}>{reason}</Text>
+                    <Text style={styles.cityCardBody}>{practicalReason}</Text>
                   </Pressable>
                 )
               })}
@@ -1976,6 +2055,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: colors.muted,
+  },
+  intentPanel: {
+    gap: 12,
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: colors.surfaceSoft,
+  },
+  intentPanelHeader: {
+    gap: 3,
+  },
+  intentHeading: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.text,
+  },
+  intentSubheading: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.muted,
+  },
+  intentWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  intentChip: {
+    minHeight: 36,
+    borderRadius: radii.pill,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  intentChipActive: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  intentChipText: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  intentChipTextActive: {
+    color: '#FFFFFF',
   },
   listSection: {
     gap: 10,

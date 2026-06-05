@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { SkeletonBlock, SkeletonText } from '@/src/components/skeleton'
 import { declutterCities } from '@/src/lib/geo'
 import { ENERGY_TIERS, LINE_TYPE_STYLES } from '@/src/lib/mapGuidance'
+import { scoreCityForTrip } from '@/src/lib/recommendations'
 import { useStore } from '@/src/store/useStore'
 import type { CityWithEnergy } from '@/src/types'
 import { colors, fonts, radii } from '@/src/theme'
@@ -97,6 +98,8 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
   const astroLines = useStore((state) => state.astroLines)
   const cities = useStore((state) => state.cities)
   const enabledPlanets = useStore((state) => state.enabledPlanets)
+  const profile = useStore((state) => state.profile)
+  const selectedTripIntent = useStore((state) => state.selectedTripIntent)
 
   const filteredLines = useMemo(
     () => astroLines.filter((line) => enabledPlanets.has(line.planet)),
@@ -111,23 +114,26 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
 
     const withLines: RenderableCity[] = []
 
+    const maxEnergy = cities.reduce((max, city) => Math.max(max, city.energyScore), 0) || 1
+
     for (let sourceRank = 0; sourceRank < cities.length; sourceRank += 1) {
       const city = cities[sourceRank]
       const activeLines = city.activeLines.filter((line) => enabledPlanets.has(line.planet))
       if (activeLines.length === 0) continue
+      const tripScore = scoreCityForTrip({ ...city, activeLines }, profile, selectedTripIntent, maxEnergy)
 
       withLines.push({
         ...city,
         activeLines,
         cityKey: cityKey(city),
         activeLineCount: activeLines.length,
-        priorityScore: city.energyScore + prominence(sourceRank),
+        priorityScore: tripScore + prominence(sourceRank),
       })
     }
 
-    withLines.sort((a, b) => b.energyScore - a.energyScore)
+    withLines.sort((a, b) => b.priorityScore - a.priorityScore)
     return declutterCities(withLines, CITY_DECLUTTER_DEGREES, (city) => city.priorityScore).slice(0, 90)
-  }, [cities, enabledPlanets])
+  }, [cities, enabledPlanets, profile, selectedTripIntent])
 
   const visibleCityByKey = useMemo(() => {
     const byKey = new Map<string, RenderableCity>()

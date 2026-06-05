@@ -77,6 +77,7 @@ export interface Retreat {
 
 export type ViewState = 'onboarding' | 'loading' | 'globe' | 'detail'
 export type UtilityPanelState = 'settings' | 'insights' | null
+export type TripIntent = 'open' | 'adventure' | 'spirituality' | 'surf' | 'romance' | 'reset' | 'culture' | 'career'
 
 export interface AppState {
   view: ViewState
@@ -88,6 +89,7 @@ export interface AppState {
   enabledPlanets: Set<Planet>
   activeUtilityPanel: UtilityPanelState
   highlightedCity: string | null
+  selectedTripIntent: TripIntent
 
   setView: (view: ViewState) => void
   setBirthData: (data: BirthData | null) => void
@@ -98,4 +100,5 @@ export interface AppState {
   togglePlanet: (planet: Planet) => void
   setActiveUtilityPanel: (panel: UtilityPanelState) => void
   setHighlightedCity: (key: string | null) => void
+  setSelectedTripIntent: (intent: TripIntent) => void
 }

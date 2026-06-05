@@ -100,11 +100,19 @@ export async function fetchTravelAdvisory(
 
     return cacheLookup(cacheKey, { status: 'ok', advisory: payload })
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
+    if (
+      typeof DOMException !== 'undefined'
+      && error instanceof DOMException
+      && error.name === 'AbortError'
+    ) {
       throw error
     }
     return cacheLookup(cacheKey, fallbackLookup(normalizedCountry), true)
   }
+}
+
+export function getBundledTravelAdvisory(country: string): TravelAdvisoryLookup {
+  return fallbackLookup(country)
 }
 
 function fallbackLookup(country: string): TravelAdvisoryLookup {
