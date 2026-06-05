@@ -1,0 +1,62 @@
+workflows:
+  ios-release-submit:
+    name: iOS release and submit
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      groups:
+        - expo-ci
+        - vibe-travel-mobile
+      node: latest
+      xcode: latest
+      cocoapods: default
+      vars:
+        APP_DIR: apps/mobile
+        IPA_PATH: artifacts/vibe-travel.ipa
+    cache:
+      cache_paths:
+        - $HOME/.npm
+        - $HOME/Library/Caches/CocoaPods
+        - $CM_BUILD_DIR/$APP_DIR/node_modules
+        - $HOME/.eas
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd "$APP_DIR"
+          npm ci
+      - name: Verify Expo config
+        script: |
+          cd "$APP_DIR"
+          npx expo config --type public
+      - name: Build iOS IPA with EAS local
+        script: |
+          cd "$APP_DIR"
+          mkdir -p "$CM_BUILD_DIR/artifacts"
+          npx eas-cli@latest build --platform ios --profile production --local --non-interactive --output "$CM_BUILD_DIR/$IPA_PATH"
+      - name: Submit IPA to App Store Connect
+        script: |
+          cd "$APP_DIR"
+          npx eas-cli@latest submit --platform ios --profile production --path "$CM_BUILD_DIR/$IPA_PATH" --non-interactive
+    artifacts:
+      - artifacts/*.ipa
+
+  ios-submit-existing-ipa:
+    name: Submit existing iOS IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 20
+    environment:
+      groups:
+        - expo-ci
+      node: latest
+      vars:
+        APP_DIR: apps/mobile
+        IPA_PATH: artifacts/vibe-travel.ipa
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd "$APP_DIR"
+          npm ci
+      - name: Submit IPA to App Store Connect
+        script: |
+          cd "$APP_DIR"
+          npx eas-cli@latest submit --platform ios --profile production --path "$CM_BUILD_DIR/$IPA_PATH" --non-interactive
