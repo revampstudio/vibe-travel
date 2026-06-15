@@ -70,6 +70,8 @@ const DRAWER_OPEN_DURATION = 480
 const DRAWER_CLOSE_DURATION = 260
 const DRAWER_OPEN_EASING = Easing.bezier(0.32, 0, 0.18, 1)
 const DRAWER_CLOSE_EASING = Easing.bezier(0.4, 0, 1, 1)
+const ANDROID_BETA_GROUP_URL = 'https://groups.google.com/g/vibe-travel-android-testers'
+const IOS_APP_STORE_URL = 'https://apps.apple.com/app/id6773780596'
 
 type AdvisoryLevelMap = Record<string, 1 | 2 | 3 | 4 | null>
 type InsightTab = 'locations' | 'about'
@@ -798,9 +800,45 @@ function SettingsDrawer({
             </Pressable>
             <Text style={styles.helperCopy}>{saveHint}</Text>
             {saveError ? <Text style={styles.inlineErrorText}>{saveError}</Text> : null}
-          </View>
+            </View>
 
-          <View style={styles.sectionBlock}>
+            {Platform.OS === 'web' && isCompactForm ? (
+              <View style={styles.mobileDownloadCard}>
+                <View style={styles.mobileDownloadCopy}>
+                  <Text style={styles.mobileDownloadEyebrow}>Mobile app</Text>
+                  <Text style={styles.mobileDownloadTitle}>Get Vibe Travel on your phone</Text>
+                  <Text style={styles.mobileDownloadBody}>Download on iPhone, or join the Android tester group before opting in on Google Play.</Text>
+                </View>
+                <Pressable
+                  accessibilityHint="Opens the Vibe Travel App Store listing in a new browser tab."
+                  accessibilityLabel="Download on the App Store"
+                  accessibilityRole="link"
+                  onPress={() => {
+                    track('ios_app_store_download_pressed', { surface: 'settings_drawer_web_mobile' })
+                    void Linking.openURL(IOS_APP_STORE_URL)
+                  }}
+                  style={({ pressed }) => [styles.mobileDownloadButton, styles.mobileDownloadButtonIos, pressed ? styles.segmentPressed : null]}
+                >
+                  <Ionicons name="logo-apple-appstore" size={17} color="#FFFFFF" />
+                  <Text style={styles.mobileDownloadButtonText}>App Store</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityHint="Opens the Vibe Travel Android tester group in a new browser tab."
+                  accessibilityLabel="Join Android beta"
+                  accessibilityRole="link"
+                  onPress={() => {
+                    track('android_beta_download_pressed', { surface: 'settings_drawer_web_mobile' })
+                    void Linking.openURL(ANDROID_BETA_GROUP_URL)
+                  }}
+                  style={({ pressed }) => [styles.mobileDownloadButton, pressed ? styles.segmentPressed : null]}
+                >
+                  <Ionicons name="logo-google-playstore" size={17} color="#FFFFFF" />
+                  <Text style={styles.mobileDownloadButtonText}>Join Android beta</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            <View style={styles.sectionBlock}>
             <Text style={styles.sectionTitleSmall}>Map guide</Text>
 
             <View style={styles.legendGroup}>
@@ -1894,15 +1932,67 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.muted,
   },
-  inlineErrorText: {
-    fontFamily: fonts.sans,
-    fontSize: 13,
-    lineHeight: 20,
-    color: colors.danger,
-  },
-  sectionTitleSmall: {
-    fontFamily: fonts.serif,
-    fontSize: 24,
+inlineErrorText: {
+fontFamily: fonts.sans,
+fontSize: 13,
+lineHeight: 20,
+color: colors.danger,
+},
+mobileDownloadCard: {
+gap: 14,
+borderRadius: 20,
+padding: 16,
+borderWidth: 1,
+borderColor: 'rgba(227, 28, 75, 0.16)',
+backgroundColor: colors.accentSoft,
+},
+mobileDownloadCopy: {
+gap: 4,
+},
+mobileDownloadEyebrow: {
+fontFamily: fonts.sans,
+fontSize: 11,
+fontWeight: '800',
+letterSpacing: 1,
+textTransform: 'uppercase',
+color: colors.accentStrong,
+},
+mobileDownloadTitle: {
+fontFamily: fonts.serif,
+fontSize: 22,
+lineHeight: 26,
+fontWeight: '700',
+color: colors.text,
+},
+mobileDownloadBody: {
+fontFamily: fonts.sans,
+fontSize: 13,
+lineHeight: 20,
+color: colors.muted,
+},
+mobileDownloadButton: {
+minHeight: 48,
+borderRadius: 16,
+flexDirection: 'row',
+alignItems: 'center',
+justifyContent: 'center',
+gap: 8,
+backgroundColor: colors.accent,
+boxShadow: shadows.accent,
+},
+mobileDownloadButtonIos: {
+backgroundColor: colors.text,
+boxShadow: shadows.control,
+},
+mobileDownloadButtonText: {
+fontFamily: fonts.sans,
+fontSize: 14,
+fontWeight: '800',
+color: '#FFFFFF',
+},
+sectionTitleSmall: {
+fontFamily: fonts.serif,
+fontSize: 24,
     lineHeight: 28,
     fontWeight: '700',
     color: colors.text,
