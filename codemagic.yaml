@@ -62,3 +62,37 @@ workflows:
         script: |
           cd "$APP_DIR"
           npx eas-cli@latest submit --platform ios --profile production --path "$CM_BUILD_DIR/$IPA_PATH" --non-interactive
+
+  android-release-build:
+    name: Android release build
+    instance_type: linux
+    max_build_duration: 30
+    environment:
+      groups:
+        - expo-ci
+        - vibe-travel-mobile
+        - vibe-travel-posthog-api-2
+        - vibe-travel-posthog-host
+      node: latest
+      vars:
+        APP_DIR: apps/mobile
+    cache:
+      cache_paths:
+        - $HOME/.npm
+        - $CM_BUILD_DIR/$APP_DIR/node_modules
+        - $HOME/.eas
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd "$APP_DIR"
+          npm ci
+      - name: Verify Expo config
+        script: |
+          cd "$APP_DIR"
+          npx expo config --type public
+      - name: Build Android AAB with EAS
+        script: |
+          cd "$APP_DIR"
+          npx eas-cli@latest build --platform android --profile production --non-interactive
+    artifacts:
+      - apps/mobile/*.aab

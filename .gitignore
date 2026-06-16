@@ -20,6 +20,9 @@ apps/mobile/.eas/
 worker/.wrangler/
 .codex
 
+# Secrets (service account keys, API credentials)
+.secrets/
+
 # Environment variables
 .env
 .env.*
