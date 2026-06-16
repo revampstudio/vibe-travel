@@ -1,6 +1,6 @@
 # App Store Release Status
 
-Last updated: 28 May 2026
+Last updated: 16 June 2026
 
 ## App
 
@@ -12,6 +12,25 @@ Last updated: 28 May 2026
 - Category: Travel, secondary Lifestyle
 - Privacy policy: `https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev/privacy`
 - Support/contact email: `mitchell@revampstudio.com.au`
+
+## Latest Release: 0.1.3 (16 June 2026)
+
+- Version: `0.1.3`
+- Build: `17`
+- Build ID: `6d70083c-a06d-4d3a-ac20-c95e817b753a`
+- Submission ID: `6d048379-4665-4514-aaf9-e95f6b2dfd73`
+- Codemagic build: `6a3182a84549360a541c68d5`
+- Status: **Waiting for Review**
+- Release notes: "Added a travel safety disclaimer to the onboarding flow and refined the final step experience."
+- Metadata pushed via EAS Metadata
+- Release type: Manual (requires manual release after approval)
+
+## Previous Release: 0.1.2 (5 June 2026)
+
+- Version: `0.1.2`
+- Build: `12`
+- Status: Live on App Store
+- Release notes: "Updated the app icon with a refined travel globe mark."
 
 ## Local Prep Completed
 
@@ -116,4 +135,4 @@ Use the live app/privacy-policy state as the source of truth when filling App St
 ## Remaining Steps
 
 1. Watch for Apple review result email.
-2. If approved, manually release this version in App Store Connect.
+2. If approved, manually release version 0.1.3 in App Store Connect.
