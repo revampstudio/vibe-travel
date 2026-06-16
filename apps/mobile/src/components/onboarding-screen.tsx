@@ -17,6 +17,7 @@ import { enrichCitiesWithEnergy } from '@/src/lib/geo'
 import { calcSoulProfile } from '@/src/lib/numerology'
 import { MobileScrollScreen } from '@/src/components/mobile-scroll-screen'
 import { SkeletonBlock } from '@/src/components/skeleton'
+import { TimeInput, type TimeInputHandle } from '@/src/components/time-input'
 import { loadCities } from '@/src/data/loadCities'
 import { useStore } from '@/src/store/useStore'
 import type { BirthData } from '@/src/types'
@@ -110,7 +111,7 @@ export function OnboardingScreen() {
   const searchRequestIdRef = useRef(0)
   const monthInputRef = useRef<TextInput>(null)
   const yearInputRef = useRef<TextInput>(null)
-  const timeInputRef = useRef<TextInput>(null)
+  const timeInputRef = useRef<TimeInputHandle>(null)
   const cityInputRef = useRef<TextInput>(null)
   const focusTimeAfterStep3Ref = useRef(false)
 
@@ -391,20 +392,16 @@ export function OnboardingScreen() {
           <View style={styles.stepBlock}>
             <View>
               <Text style={styles.fieldLabel}>Birth time</Text>
-              <TextInput
+              <TimeInput
                 ref={timeInputRef}
                 value={time}
-                onChangeText={setTime}
-                placeholder="12:00"
-                accessibilityLabel="Birth time"
-                accessibilityHint="Enter your birth time, or choose the checkbox below if you do not know it."
-                autoComplete="off"
-                autoCapitalize="none"
+                onChange={setTime}
+                label="Birth time"
+                disabled={!timeKnown}
+                hoursAccessibilityLabel="Birth hour"
+                minutesAccessibilityLabel="Birth minutes"
                 returnKeyType="next"
-                blurOnSubmit={false}
                 onSubmitEditing={() => cityInputRef.current?.focus()}
-                editable={timeKnown}
-                style={[styles.input, !timeKnown ? styles.inputDisabled : null]}
               />
 
               <Pressable

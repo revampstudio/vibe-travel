@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Ionicons from '@expo/vector-icons/Ionicons'
 
 import { SkeletonBlock, SkeletonText } from '@/src/components/skeleton'
+import { TimeInput } from '@/src/components/time-input'
 import { WorldMapCard } from '@/src/components/world-map-card'
 import { cityAnalyticsProperties, track } from '@/src/lib/analytics'
 import { PLANET_COLORS, PLANETS, computeAstroLines } from '@/src/lib/astrocartography'
@@ -713,16 +714,13 @@ function SettingsDrawer({
               </View>
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Time</Text>
-                <TextInput
-                  accessibilityHint="Enter the time of birth in 24-hour format."
-                  accessibilityLabel="Birth time"
-                  autoCapitalize="none"
-                  autoComplete="off"
-                  onChangeText={setTime}
-                  placeholder="HH:MM"
-                  style={styles.input}
-                  textContentType="none"
+                <TimeInput
+                  compact
                   value={time}
+                  onChange={setTime}
+                  label="Birth time"
+                  hoursAccessibilityLabel="Birth hour"
+                  minutesAccessibilityLabel="Birth minutes"
                 />
               </View>
             </View>
