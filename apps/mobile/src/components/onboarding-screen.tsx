@@ -244,7 +244,7 @@ export function OnboardingScreen() {
 
   const submitHint = missingRequirements.length > 0
     ? `To continue, add your ${missingRequirements.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`
-    : 'You are ready to build your map.'
+    : ''
 
   return (
     <MobileScrollScreen contentContainerStyle={styles.content} extraBottomInset={40}>
@@ -510,7 +510,11 @@ export function OnboardingScreen() {
                 {isSubmitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Build my map</Text>}
               </Pressable>
             </View>
-            <Text style={styles.helperText}>{submitHint}</Text>
+            {submitHint !== '' ? <Text style={styles.helperText}>{submitHint}</Text> : null}
+            <Text style={styles.disclaimerText}>
+              Your most aligned destinations may not be the safest places to travel. Always
+              exercise due diligence and research your destinations before traveling.
+            </Text>
           </View>
         ) : null}
       </View>
@@ -694,6 +698,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: colors.muted,
+  },
+  disclaimerText: {
+    marginTop: 16,
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.muted,
+    textAlign: 'center',
   },
   checkboxRow: {
     marginTop: 12,
