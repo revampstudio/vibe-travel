@@ -1,6 +1,6 @@
 # Play Store Release Status
 
-Last updated: 15 June 2026
+Last updated: 16 June 2026
 
 ## App
 
@@ -11,12 +11,25 @@ Last updated: 15 June 2026
 - Closed testing track: `Closed testing - Alpha`
 - Closed testing track ID: `4700342318832778681`
 
-## Build
+## Latest Build: 0.1.3 (16 June 2026)
 
-- Current uploaded Android App Bundle: `vibe-travel-0.1.0-8.aab`
+- Uploaded Android App Bundle: `vibe-travel-0.1.3-12.aab` (113 MB)
+- Version code: `12`
+- App version: `0.1.3`
+- Built: Local Gradle (`bundleRelease`) due to EAS cloud outage
+- Local artifact: `/media/mitch/files2/projects/vibe-travel-play-artifacts/vibe-travel-0.1.3-12.aab`
+- EAS submission ID: `f6cbb702-fba2-44ef-bb9a-b6faf7d0ecd0`
+- Submission track: Closed testing (internal)
+- Service account: `pushup-game-play-store@revamp-studio-475102.iam.gserviceaccount.com`
+- EAS submit profile: `production` (service account key at `.secrets/play-store-service-account.json`)
+- Changes: Added travel safety disclaimer to onboarding, refined final step
+
+## Previous Build: 0.1.0 (17 May 2026)
+
+- Uploaded Android App Bundle: `vibe-travel-0.1.0-8.aab`
 - Version: `8 (0.1.0)`
 - EAS build ID: `aac24887-32da-469f-82f7-6cf50e28cf89`
-- Local artifact: `/media/mitch/files/projects/vibe-travel-play-artifacts/vibe-travel-0.1.0-8.aab`
+- Local artifact: `/media/mitch/files2/projects/vibe-travel-play-artifacts/vibe-travel-0.1.0-8.aab`
 - Expo/EAS project: `@mitchellrben/vibe-travel-mobile`
 
 ## Completed In Play Console
