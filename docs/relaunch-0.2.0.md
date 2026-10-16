@@ -1,6 +1,6 @@
 # Vibe Travel 0.2.0 relaunch preparation
 
-Status: implementation, web QA and critical native QA passed. The updated sharing privacy policy is live, and replacement signed production builds are running. Store submission/review remain outstanding. No app-store release or metadata publication is represented by this document.
+Status: implementation, web QA and critical native QA passed; both replacement signed builds finished and the sharing privacy policy is live. Android 0.2.0 (18) and its en-GB listing update are submitted for closed-test review, with Google quick checks/review pending. They are not yet live or publicly released. The iOS 0.2.0 (19) IPA is prepared but not uploaded because Apple requires an in-effect agreement.
 
 ## Request → implementation
 
@@ -71,7 +71,7 @@ VIBE_NO_WATCHMAN=1 EXPO_OFFLINE=1 npx expo start --dev-client --port 8087
 
 - Independent Jackie-perspective runtime QA must pass on web and available native targets; record limitations rather than claiming untested platforms passed.
 - Confirm Apple agreements/account access and current review status before submission. Store name availability must be checked during metadata submission.
-- Confirm Google Play production eligibility and any testing requirements before promising a production launch.
+- Google Play public-production access remains gated by at least 12 testers opted in continuously for 14 days. The current alpha submission does not satisfy or bypass that requirement; tester membership was not changed.
 - Use a fresh incremented native build number/versionCode through the existing EAS remote version workflow. Do not reuse previous store build identifiers.
 - The privacy-policy source in `worker/src/index.ts` now describes deliberate image/code sharing, derived personal geometry, recipient copies, session-only companions and temporary-file retention. The policy was published after the native QA gate and both public aliases were verified before any app-store submission.
 - Prepare current screenshots for Share & compare and richer descriptions; old store screenshots do not demonstrate these features.
@@ -102,7 +102,7 @@ On 17 October 2026, [EAS build `58a8a28e-d79b-48f9-8806-6e9939787cb2`](https://e
 - Existing production EAS Mapbox configuration matches the recovered public app token. EAS also loaded the existing PostHog variables. The advisory API uses the existing default Worker URL. No environment variables needed changing.
 - Existing Play service-account JSON is present at the submit profile's ignored `.secrets/play-store-service-account.json` path, validates structurally, and has mode `0600`. Its contents are not part of the repository/build archive.
 - The account reported the Free plan, 0 of 15 Android builds used and 0 of 30 total builds used before starting. No upgrade or additional purchase was made.
-- This is build preparation only. No EAS Submit, Play track update, rollout or store release has run. Native QA and the release gates above still apply; Google Play public production eligibility remains separate from an alpha test release.
+- This superseded attempt stopped at build preparation. No artifact from either canceled job was submitted; the later verified replacement builds are recorded separately below. Google Play public-production eligibility remains separate from the alpha test release.
 
 Build command used from `apps/mobile`:
 
@@ -122,9 +122,31 @@ Both builds were started after the completed web/iOS/Android critical QA gate fr
 
 | Platform | EAS build | Version | Status when recorded |
 | --- | --- | --- | --- |
-| Android | [35cc02da-149e-4ea9-a7f5-73d6ea9964bc](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/35cc02da-149e-4ea9-a7f5-73d6ea9964bc) | 0.2.0 (18) | IN_PROGRESS |
-| iOS | [eb804ed7-53bd-4b21-afa7-8d210a146aec](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/eb804ed7-53bd-4b21-afa7-8d210a146aec) | 0.2.0 (19) | IN_PROGRESS |
+| Android | [35cc02da-149e-4ea9-a7f5-73d6ea9964bc](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/35cc02da-149e-4ea9-a7f5-73d6ea9964bc) | 0.2.0 (18) | FINISHED; alpha + en-GB changes submitted for review |
+| iOS | [eb804ed7-53bd-4b21-afa7-8d210a146aec](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/eb804ed7-53bd-4b21-afa7-8d210a146aec) | 0.2.0 (19) | FINISHED; upload blocked by Apple agreement |
 
 Both use the existing production environment and frozen remote signing credentials. The quota check immediately before starting reported the Free plan, 0/15 builds used for each platform, 0/30 total and no estimated overage. No purchases, new credentials, permissions or production track changes were made.
 
-The next Android step is to verify the successful AAB and obtain a fresh clear Play Publishing overview check, then update only the existing `alpha` track and `en-GB` listing in one validated edit. Preserve testers, countries, other tracks and listing fields; commit with `ERROR_IF_IN_REVIEW`. The upload response's SHA-256, when supplied, must match the downloaded artifact. For iOS, use the existing App Store Connect submission credentials if available; an unresolved Apple agreement may still prevent review or release and must not be accepted automatically.
+The authorized Android submission and the blocked iOS upload are recorded below. Existing testers, countries, unrelated tracks and unrelated listing fields remain preserved. No Apple agreement was accepted automatically.
+
+
+### iOS upload outcome
+
+The replacement iOS build finished successfully. The downloaded IPA passed ZIP integrity checks and its `Info.plist` confirms bundle `com.mitchellrben.vibetravelmobile`, version `0.2.0`, build `19`. SHA-256: `9d847bf588aa6627ba9cff5d04c6bcdcb25f0265d5ea61ee1c23033ca8182e6e`.
+
+The exact-build EAS Submit attempt reused the existing App Store Connect API key. [Submission `f11fe3b7-0eb8-4b27-b843-90fbadb8df1b`](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/submissions/f11fe3b7-0eb8-4b27-b843-90fbadb8df1b) ended `ERRORED`; Expo returned no error detail or logs. A fallback `asc builds upload` attempt using the existing local Keychain authentication failed while fetching app `6773780596`, before file transfer: “A required agreement is missing or has expired. This request requires an in-effect agreement that has not been signed or has expired.”
+
+The IPA is prepared but **not uploaded**. No Apple agreement was accepted, no credential or grant was created, and no App Store metadata/review/release change occurred. Further Apple attempts are paused until the account holder resolves the agreement.
+
+
+### Android closed-test submission outcome
+
+The replacement Android build finished successfully. The downloaded AAB passed ZIP integrity and package/version checks; EAS confirms Android STORE production `0.2.0` / versionCode `18` from fixed source `7ed7eca1ac0b1491241bf7f8b46792c51ad69bd7`. The 113,202,388-byte artifact SHA-256 is `04803ae441314f72cb4749cd811b585405183954d3616bf9835b4ff17d63e6f9`, and Google returned exactly the same SHA-256 after upload.
+
+An initial upload exceeded the Python client's 60-second response timeout before any listing/track update or commit. Its own uncommitted edit was discarded successfully; Console then confirmed only the prior version 8 and no unpublished changes. The release helper was corrected to a 300-second HTTP timeout, retaining resumable-upload handling and adding recovery that reuses an existing version only on an exact artifact-hash match.
+
+Following another fresh clear Publishing overview check at `2026-10-16T22:29:19Z`, edit `01277331317985531875` uploaded the reviewed version 18 and updated only the existing `alpha` release and `en-GB` title, short description and full description. The alpha release is named `0.2.0 (18)`, uses `completed` rollout status and the reviewed en-GB release notes. Existing listing fields, other tracks, app details, tester configuration and country availability passed before/after preservation checks. Edit validation passed; commit succeeded with `changesInReviewBehavior=ERROR_IF_IN_REVIEW`.
+
+The subsequent Play Console read showed **Changes in review**, with quick checks running. It listed exactly **Alpha 0.2.0 (18) — Start full rollout** and the requested en-GB listing changes. Managed publishing is OFF; the last live publication still showed 15 June 2026. This is a submitted closed-test update, **not a live release or public-production launch**. Google approval/publication remains outstanding, and the 12-testers/14-continuous-days public-production gate remains unchanged.
+
+Task evidence is preserved outside the repository: `evidence/play-release/20261016T222928Z/` contains the before/after snapshots, uploaded bundle hash, validation and commit responses; `evidence/play-publishing-after-submit.png` records the Console state. The failed discarded attempt is retained separately at `evidence/play-release/20261016T222542Z/`. The iOS outcome is recorded in `evidence/ios-upload-outcome.json`, and both verified native artifacts are retained in `.runtime/release/artifacts/`.
