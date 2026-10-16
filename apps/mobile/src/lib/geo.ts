@@ -5,7 +5,7 @@ const PROXIMITY_THRESHOLD = 3
 const BUCKET_SIZE = 10
 
 function lngBucket(lng: number): number {
-  return Math.floor(((lng + 180) % 360) / BUCKET_SIZE)
+  return Math.floor((((lng + 180) % 360 + 360) % 360) / BUCKET_SIZE)
 }
 
 function nearbyBuckets(lng: number, range: number): number[] {

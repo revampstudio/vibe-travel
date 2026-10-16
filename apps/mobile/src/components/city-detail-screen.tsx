@@ -310,6 +310,19 @@ export function CityDetailScreen({
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.sectionEyebrow}>Interpretation</Text>
+          <Text style={styles.sectionTitle}>Planetary influences</Text>
+          {uniqueLines.map((line) => (
+            <View key={`${line.planet}-${line.lineType}`} style={styles.influenceCard}>
+              <View style={styles.influenceHeader}>
+                <View style={[styles.influenceDot, { backgroundColor: PLANET_COLORS[line.planet] }]} />
+                <Text style={styles.influenceTitle}>{line.planet} on {LINE_LABELS[line.lineType]}</Text>
+              </View>
+              <Text style={styles.body}>{getInterpretation(line.planet, line.lineType)}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={styles.card}>
           <Text style={styles.sectionEyebrow}>Context</Text>
           <Text style={styles.sectionTitle}>Local vibe preview</Text>
           {wikiLoading ? (
@@ -320,6 +333,45 @@ export function CityDetailScreen({
             </Text>
           )}
         </View>
+
+        {(advisory || advisoryState?.status === 'unavailable') && (
+          <View style={styles.card}>
+            <Text style={styles.sectionEyebrow}>Safety</Text>
+            <Text style={styles.sectionTitle}>Travel advisory</Text>
+            {advisory ? (
+              <View
+                style={[
+                  styles.advisoryPanel,
+                  { backgroundColor: ADVISORY_STYLES[advisory.adviceLevel].panel },
+                ]}
+              >
+                <View style={styles.advisoryHeader}>
+                  <Text style={styles.advisoryCountry}>{advisory.matchedCountry}</Text>
+                  <View
+                    style={[
+                      styles.advisoryBadge,
+                      { backgroundColor: ADVISORY_STYLES[advisory.adviceLevel].badgeBg },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.advisoryBadgeText,
+                        { color: ADVISORY_STYLES[advisory.adviceLevel].badgeText },
+                      ]}
+                    >
+                      Level {advisory.adviceLevel}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.advisoryLabel}>{advisory.adviceLabel}</Text>
+                <Text style={styles.body}>{advisory.summary}</Text>
+                <Text style={styles.metaText}>Updated {formatAdvisoryDate(advisory.updatedAt)}</Text>
+              </View>
+            ) : (
+              <Text style={styles.body}>The advisory feed is temporarily unavailable for this destination.</Text>
+            )}
+          </View>
+        )}
 
         {activitiesState === null ? <ActivitiesSkeleton full /> : (
           <View style={styles.card}>
@@ -393,58 +445,6 @@ export function CityDetailScreen({
           </View>
         )}
 
-        {(advisory || advisoryState?.status === 'unavailable') && (
-          <View style={styles.card}>
-            <Text style={styles.sectionEyebrow}>Safety</Text>
-            <Text style={styles.sectionTitle}>Travel advisory</Text>
-            {advisory ? (
-              <View
-                style={[
-                  styles.advisoryPanel,
-                  { backgroundColor: ADVISORY_STYLES[advisory.adviceLevel].panel },
-                ]}
-              >
-                <View style={styles.advisoryHeader}>
-                  <Text style={styles.advisoryCountry}>{advisory.matchedCountry}</Text>
-                  <View
-                    style={[
-                      styles.advisoryBadge,
-                      { backgroundColor: ADVISORY_STYLES[advisory.adviceLevel].badgeBg },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.advisoryBadgeText,
-                        { color: ADVISORY_STYLES[advisory.adviceLevel].badgeText },
-                      ]}
-                    >
-                      Level {advisory.adviceLevel}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.advisoryLabel}>{advisory.adviceLabel}</Text>
-                <Text style={styles.body}>{advisory.summary}</Text>
-                <Text style={styles.metaText}>Updated {formatAdvisoryDate(advisory.updatedAt)}</Text>
-              </View>
-            ) : (
-              <Text style={styles.body}>The advisory feed is temporarily unavailable for this destination.</Text>
-            )}
-          </View>
-        )}
-
-        <View style={styles.card}>
-          <Text style={styles.sectionEyebrow}>Interpretation</Text>
-          <Text style={styles.sectionTitle}>Planetary influences</Text>
-          {uniqueLines.map((line) => (
-            <View key={`${line.planet}-${line.lineType}`} style={styles.influenceCard}>
-              <View style={styles.influenceHeader}>
-                <View style={[styles.influenceDot, { backgroundColor: PLANET_COLORS[line.planet] }]} />
-                <Text style={styles.influenceTitle}>{line.planet} on {LINE_LABELS[line.lineType]}</Text>
-              </View>
-              <Text style={styles.body}>{getInterpretation(line.planet, line.lineType)}</Text>
-            </View>
-          ))}
-        </View>
       </View>
     </MobileScrollScreen>
   )

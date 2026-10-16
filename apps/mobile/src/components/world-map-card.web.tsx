@@ -5,8 +5,9 @@ import { SkeletonBlock, SkeletonText } from '@/src/components/skeleton'
 import { declutterCities } from '@/src/lib/geo'
 import { ENERGY_TIERS, LINE_TYPE_STYLES } from '@/src/lib/mapGuidance'
 import { scoreCityForTrip } from '@/src/lib/recommendations'
+import { sharedChartLines } from '@/src/lib/chartSharing'
 import { useStore } from '@/src/store/useStore'
-import type { CityWithEnergy } from '@/src/types'
+import type { AstroLine, CityWithEnergy } from '@/src/types'
 import { colors, fonts, radii } from '@/src/theme'
 
 interface RenderableCity extends CityWithEnergy {
@@ -218,19 +219,24 @@ function MapHost({ onReady }: { onReady: (map: MapboxMap) => void }) {
   return <div ref={hostRef} style={domStyles.host} />
 }
 
-export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEnergy) => void }) {
+export function WorldMapCard({ onCityPress, displayLines, displayCities, otherLines }: { onCityPress: (city: CityWithEnergy) => void; displayLines?: AstroLine[]; displayCities?: CityWithEnergy[]; otherLines?: AstroLine[] }) {
   const mapRef = useRef<MapboxMap | null>(null)
   const popupRef = useRef<MapboxPopup | null>(null)
-  const astroLines = useStore((state) => state.astroLines)
-  const cities = useStore((state) => state.cities)
+  const storedLines = useStore((state) => state.astroLines)
+  const astroLines = displayLines ?? storedLines
+  const companionChart = useStore((state) => state.companionChart)
+  const showCompanion = useStore((state) => state.showCompanion)
+  const companionLines = useMemo(() => otherLines ?? (companionChart && showCompanion ? sharedChartLines(companionChart) : []), [otherLines, companionChart, showCompanion])
+  const storedCities = useStore((state) => state.cities)
+  const cities = displayCities ?? storedCities
   const enabledPlanets = useStore((state) => state.enabledPlanets)
   const profile = useStore((state) => state.profile)
   const selectedTripIntent = useStore((state) => state.selectedTripIntent)
   const selectedCity = useStore((state) => state.selectedCity)
 
   const filteredLines = useMemo(
-    () => astroLines.filter((line) => enabledPlanets.has(line.planet)),
-    [astroLines, enabledPlanets],
+    () => [...astroLines.map(line => ({ ...line, owner: 'you' })), ...companionLines.map(line => ({ ...line, owner: 'companion', color: '#263B70' }))].filter((line) => enabledPlanets.has(line.planet)),
+    [astroLines, companionLines, enabledPlanets],
   )
 
   const linesGeoJSON = useMemo(() => ({
@@ -239,7 +245,7 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
       type: 'Feature' as const,
       properties: {
         id: index,
-        lineType: line.lineType,
+        lineType: line.owner === 'companion' ? 'companion' : line.lineType,
         color: line.color,
       },
       geometry: {
@@ -301,6 +307,9 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
     })),
   }), [renderableCities])
 
+  const latest = useRef({ linesGeoJSON, citiesGeoJSON, visibleCityByKey, onCityPress })
+  latest.current = { linesGeoJSON, citiesGeoJSON, visibleCityByKey, onCityPress }
+
   useEffect(() => {
     const map = mapRef.current
     if (!map || !map.isStyleLoaded()) return
@@ -336,9 +345,9 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
             map.on('load', () => {
               map.addSource('astro-lines', {
                 type: 'geojson',
-                data: linesGeoJSON,
+                data: latest.current.linesGeoJSON,
               })
-              for (const style of LINE_TYPE_STYLES) {
+              for (const style of [...LINE_TYPE_STYLES, { lineType: 'companion', dasharray: [3, 2] }]) {
                 map.addLayer({
                   id: `astro-lines-${style.lineType.toLowerCase()}`,
                   type: 'line',
@@ -359,7 +368,7 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
 
               map.addSource('cities', {
                 type: 'geojson',
-                data: citiesGeoJSON,
+                data: latest.current.citiesGeoJSON,
               })
               map.addLayer({
                 id: 'city-glow',
@@ -430,7 +439,7 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
                 const key = feature?.properties?.cityKey
                 if (typeof key !== 'string') return
 
-                const city = visibleCityByKey.get(key)
+                const city = latest.current.visibleCityByKey.get(key)
                 if (!city) return
 
                 map.getCanvas().style.cursor = 'pointer'
@@ -456,7 +465,7 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
                 const key = feature?.properties?.cityKey
                 if (typeof key !== 'string') return
 
-                const city = visibleCityByKey.get(key)
+                const city = latest.current.visibleCityByKey.get(key)
                 if (!city) return
 
                 map.flyTo({
@@ -464,7 +473,7 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
                   zoom: 4.8,
                   duration: 900,
                 })
-                onCityPress(city)
+                latest.current.onCityPress(city)
               }
 
               map.on('mousemove', 'city-circles', handleMouseMove)

@@ -133,17 +133,40 @@ function splitLineAtAntimeridian(coords: [number, number][]): [number, number][]
   return segments.filter((s) => s.length >= 2)
 }
 
-export function computeAstroLines(birthDate: string, birthTime: string): AstroLine[] {
+export type ChartGeometry = [number, number][] // MC longitude and declination, in PLANETS order
+
+export function birthInstant(birthDate: string, birthTime: string, utcOffsetMinutes = 0): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate) || !/^\d{2}:\d{2}$/.test(birthTime)) throw new Error('Enter a valid date and 24-hour time.')
   const [year, month, day] = birthDate.split('-').map(Number)
   const [hour, minute] = birthTime.split(':').map(Number)
-  const date = new Date(Date.UTC(year, month - 1, day, hour, minute))
+  const local = new Date(0)
+  local.setUTCFullYear(year, month - 1, day)
+  local.setUTCHours(hour, minute, 0, 0)
+  if (year < 1900 || year > new Date().getUTCFullYear() || local.getUTCMonth() !== month - 1 || local.getUTCDate() !== day || hour > 23 || minute > 59 || !Number.isFinite(utcOffsetMinutes) || utcOffsetMinutes < -720 || utcOffsetMinutes > 840) throw new Error('Check the birth date, time and UTC offset.')
+  return new Date(local.getTime() - utcOffsetMinutes * 60000)
+}
 
+export function computeChartGeometry(birthDate: string, birthTime: string, utcOffsetMinutes = 0): ChartGeometry {
+  const date = birthInstant(birthDate, birthTime, utcOffsetMinutes)
   const gst = getGST(date)
+  return PLANETS.map((planet) => {
+    const pos = getPlanetPosition(planet, date)
+    return [normalizeLng(pos.ra - gst), pos.dec]
+  })
+}
+
+export function computeAstroLines(birthDate: string, birthTime: string, utcOffsetMinutes = 0): AstroLine[] {
+  return linesFromGeometry(computeChartGeometry(birthDate, birthTime, utcOffsetMinutes))
+}
+
+export function linesFromGeometry(geometry: ChartGeometry): AstroLine[] {
   const lines: AstroLine[] = []
   const lineTypes: LineType[] = ['MC', 'IC', 'ASC', 'DSC']
 
   for (const planet of PLANETS) {
-    const pos = getPlanetPosition(planet, date)
+    const [ra, dec] = geometry[PLANETS.indexOf(planet)]
+    const gst = 0
+    const pos = { ra, dec }
 
     const rawLines: Record<LineType, [number, number][]> = {
       MC: computeMCLine(pos.ra, gst),

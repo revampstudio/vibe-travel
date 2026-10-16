@@ -14,8 +14,9 @@ import { SkeletonBlock, SkeletonText } from '@/src/components/skeleton'
 import { declutterCities } from '@/src/lib/geo'
 import { ENERGY_TIERS, LINE_TYPE_STYLES } from '@/src/lib/mapGuidance'
 import { scoreCityForTrip } from '@/src/lib/recommendations'
+import { sharedChartLines } from '@/src/lib/chartSharing'
 import { useStore } from '@/src/store/useStore'
-import type { CityWithEnergy } from '@/src/types'
+import type { AstroLine, CityWithEnergy } from '@/src/types'
 import { colors, fonts, radii } from '@/src/theme'
 import { cityKey } from '@/src/utils/cityKey'
 
@@ -90,20 +91,25 @@ const activeCityCoreStyle = {
   circleStrokeWidth: 3,
 } as const
 
-export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEnergy) => void }) {
+export function WorldMapCard({ onCityPress, displayLines, displayCities, otherLines }: { onCityPress: (city: CityWithEnergy) => void; displayLines?: AstroLine[]; displayCities?: CityWithEnergy[]; otherLines?: AstroLine[] }) {
   const cameraRef = useRef<MapboxCameraRef>(null)
   const insets = useSafeAreaInsets()
   const selectedCity = useStore((state) => state.selectedCity)
   const highlightedCity = useStore((state) => state.highlightedCity)
-  const astroLines = useStore((state) => state.astroLines)
-  const cities = useStore((state) => state.cities)
+  const storedLines = useStore((state) => state.astroLines)
+  const astroLines = displayLines ?? storedLines
+  const companionChart = useStore((state) => state.companionChart)
+  const showCompanion = useStore((state) => state.showCompanion)
+  const companionLines = useMemo(() => otherLines ?? (companionChart && showCompanion ? sharedChartLines(companionChart) : []), [otherLines, companionChart, showCompanion])
+  const storedCities = useStore((state) => state.cities)
+  const cities = displayCities ?? storedCities
   const enabledPlanets = useStore((state) => state.enabledPlanets)
   const profile = useStore((state) => state.profile)
   const selectedTripIntent = useStore((state) => state.selectedTripIntent)
 
   const filteredLines = useMemo(
-    () => astroLines.filter((line) => enabledPlanets.has(line.planet)),
-    [astroLines, enabledPlanets],
+    () => [...astroLines.map(line => ({ ...line, owner: 'you' })), ...companionLines.map(line => ({ ...line, owner: 'companion', color: '#263B70' }))].filter((line) => enabledPlanets.has(line.planet)),
+    [astroLines, companionLines, enabledPlanets],
   )
 
   const renderableCities = useMemo(() => {
@@ -147,7 +153,7 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
       type: 'Feature' as const,
       id: `${line.planet}-${line.lineType}-${index}`,
       properties: {
-        lineType: line.lineType,
+        lineType: line.owner === 'companion' ? 'companion' : line.lineType,
         color: line.color,
         width: line.planet === 'Sun' || line.planet === 'Venus' || line.planet === 'Jupiter' ? 2.4 : 1.7,
       },
@@ -239,7 +245,7 @@ export function WorldMapCard({ onCityPress }: { onCityPress: (city: CityWithEner
             />
 
             <ShapeSource id="astro-lines" shape={linesShape}>
-              {LINE_TYPE_STYLES.map((style) => (
+              {[...LINE_TYPE_STYLES, { lineType: 'companion', dasharray: [3, 2] }].map((style) => (
                 <LineLayer
                   key={style.lineType}
                   id={`astro-lines-${style.lineType.toLowerCase()}`}

@@ -32,19 +32,7 @@ const parseTime = (time: string) => {
   return { hours: h ?? '', minutes: m ?? '' }
 }
 
-const clampHours = (value: string) => {
-  const n = Number(value)
-  if (Number.isNaN(n)) return '00'
-  if (n > 23) return '23'
-  return pad(value)
-}
-
-const clampMinutes = (value: string) => {
-  const n = Number(value)
-  if (Number.isNaN(n)) return '00'
-  if (n > 59) return '59'
-  return pad(value)
-}
+const normalizePart = (value: string) => value === '' ? '' : pad(value)
 
 export const TimeInput = forwardRef<TimeInputHandle, TimeInputProps>(
   (
@@ -67,9 +55,11 @@ export const TimeInput = forwardRef<TimeInputHandle, TimeInputProps>(
     const hoursRef = useRef<TextInput>(null)
     const minutesRef = useRef<TextInput>(null)
     const lastEmittedRef = useRef(value)
+    // Focus can synchronously blur before React commits state. Keep the latest draft available.
+    const draftRef = useRef(initial)
 
     const emitChange = (h: string, m: string) => {
-      const next = `${pad(h)}:${pad(m)}`
+      const next = h === '' || m === '' ? '' : `${pad(h)}:${pad(m)}`
       lastEmittedRef.current = next
       onChange(next)
     }
@@ -78,6 +68,7 @@ export const TimeInput = forwardRef<TimeInputHandle, TimeInputProps>(
       if (value === lastEmittedRef.current) return
       lastEmittedRef.current = value
       const next = parseTime(value)
+      draftRef.current = next
       setHours(next.hours)
       setMinutes(next.minutes)
     }, [value])
@@ -88,8 +79,9 @@ export const TimeInput = forwardRef<TimeInputHandle, TimeInputProps>(
 
     const handleHoursChange = (raw: string) => {
       const cleaned = raw.replace(/\D/g, '').slice(0, 2)
+      draftRef.current.hours = cleaned
       setHours(cleaned)
-      emitChange(cleaned, minutes)
+      emitChange(cleaned, draftRef.current.minutes)
 
       if (cleaned.length === 2) {
         minutesRef.current?.focus()
@@ -98,20 +90,23 @@ export const TimeInput = forwardRef<TimeInputHandle, TimeInputProps>(
 
     const handleMinutesChange = (raw: string) => {
       const cleaned = raw.replace(/\D/g, '').slice(0, 2)
+      draftRef.current.minutes = cleaned
       setMinutes(cleaned)
-      emitChange(hours, cleaned)
+      emitChange(draftRef.current.hours, cleaned)
     }
 
     const handleHoursBlur = () => {
-      const normalized = clampHours(hours)
+      const normalized = normalizePart(draftRef.current.hours)
+      draftRef.current.hours = normalized
       setHours(normalized)
-      emitChange(normalized, minutes)
+      emitChange(normalized, draftRef.current.minutes)
     }
 
     const handleMinutesBlur = () => {
-      const normalized = clampMinutes(minutes)
+      const normalized = normalizePart(draftRef.current.minutes)
+      draftRef.current.minutes = normalized
       setMinutes(normalized)
-      emitChange(hours, normalized)
+      emitChange(draftRef.current.hours, normalized)
     }
 
     const handleMinutesKeyPress = (

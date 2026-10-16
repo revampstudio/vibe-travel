@@ -1,3 +1,4 @@
+import { Link } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -17,6 +18,7 @@ import { enrichCitiesWithEnergy } from '@/src/lib/geo'
 import { calcSoulProfile } from '@/src/lib/numerology'
 import { MobileScrollScreen } from '@/src/components/mobile-scroll-screen'
 import { SkeletonBlock } from '@/src/components/skeleton'
+import { useBirthTimeZone } from '@/src/components/birth-time-zone'
 import { TimeInput, type TimeInputHandle } from '@/src/components/time-input'
 import { loadCities } from '@/src/data/loadCities'
 import { useStore } from '@/src/store/useStore'
@@ -184,12 +186,15 @@ export function OnboardingScreen() {
     [birthDay, birthMonth, birthYear],
   )
 
+  const zone = useBirthTimeZone(birthdayIso ?? '', timeKnown ? time : '12:00', selectedGeo)
+
   const cityError = showSubmitErrors && !selectedGeo ? 'Choose your birth city from the suggestions.' : null
   const timeError = showSubmitErrors && timeKnown && !time ? 'Enter your birth time, or choose “I do not know”.' : null
   const missingRequirements = [
     !birthdayIso ? 'birthday' : null,
     !selectedGeo ? 'birth city' : null,
     timeKnown && !time ? 'birth time' : null,
+    zone.offsetMinutes === null ? 'birth time zone' : null,
   ].filter((value): value is string => Boolean(value))
 
   const handleCitySelect = (result: GeoResult) => {
@@ -206,7 +211,7 @@ export function OnboardingScreen() {
   const handleSubmit = async () => {
     setShowSubmitErrors(true)
     setSubmitError(null)
-    if (!birthdayIso || !selectedGeo || (timeKnown && !time) || isSubmitting) return
+    if (!birthdayIso || !selectedGeo || (timeKnown && !time) || zone.offsetMinutes === null || isSubmitting) return
 
     setIsSubmitting(true)
 
@@ -214,13 +219,17 @@ export function OnboardingScreen() {
       const birthData: BirthData = {
         date: birthdayIso,
         time: timeKnown ? time : '12:00',
+        timeKnown,
+        utcOffsetMinutes: zone.offsetMinutes!,
+        timeZone: zone.timeZone,
+        utcOffsetSource: zone.source,
         city: selectedGeo.place_name,
         lng: selectedGeo.center[0],
         lat: selectedGeo.center[1],
       }
 
       const profile = calcSoulProfile(birthData.date)
-      const astroLines = computeAstroLines(birthData.date, birthData.time)
+      const astroLines = computeAstroLines(birthData.date, birthData.time, birthData.utcOffsetMinutes)
       const cities = await loadCities()
       const enrichedCities = enrichCitiesWithEnergy(cities, astroLines)
 
@@ -289,7 +298,8 @@ export function OnboardingScreen() {
               ))}
             </View>
 
-            <Text style={styles.helperText}>Setup takes less than a minute.</Text>
+            <Link href="/together" style={{ color: colors.accentStrong, paddingVertical: 10 }}>Received a chart? Open Share & compare</Link>
+            <Text style={styles.helperText}>Have your birth date, local time and birthplace ready.</Text>
 
             <Pressable
               accessibilityRole="button"
@@ -391,6 +401,7 @@ export function OnboardingScreen() {
         {step === 3 ? (
           <View style={styles.stepBlock}>
             <View>
+              <Link href="/together" style={{ color: colors.accentStrong, paddingVertical: 10 }}>Received a chart? Open Share & compare</Link>
               <Text style={styles.fieldLabel}>Birth time</Text>
               <TimeInput
                 ref={timeInputRef}
@@ -418,6 +429,8 @@ export function OnboardingScreen() {
                 <Text style={styles.checkboxText}>I do not know my birth time (use 12:00 PM)</Text>
               </Pressable>
               {timeError ? <Text style={styles.errorText}>{timeError}</Text> : null}
+              {showSubmitErrors && zone.offsetMinutes === null ? <Text style={styles.errorText}>Choose a birth city and resolve any time-zone message below.</Text> : null}
+              {!timeKnown ? <Text style={styles.errorText}>This is an approximate noon chart. Without a known birth time, the lines may shift substantially. Use it for exploration only.</Text> : null}
             </View>
 
             <View style={styles.cityFieldWrap}>
@@ -486,6 +499,7 @@ export function OnboardingScreen() {
               ) : null}
 
               {cityError ? <Text style={styles.errorText}>{cityError}</Text> : null}
+              {zone.control}
               {submitError ? <Text style={styles.errorText}>{submitError}</Text> : null}
             </View>
 
