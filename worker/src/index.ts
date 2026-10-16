@@ -10,7 +10,7 @@ const SOURCE_URL = 'https://www.smartraveller.gov.au/destinations-export'
 const CACHE_KEY_URL = 'https://cache.vibe-travel.internal/smartraveller/v2'
 const MAX_SNAPSHOT_AGE_MS = 6 * 60 * 60 * 1000
 const UPSTREAM_TIMEOUT_MS = 8000
-const PRIVACY_POLICY_UPDATED = '17 May 2026'
+const PRIVACY_POLICY_UPDATED = '17 October 2026'
 
 interface WorkerEnv {
   SMARTRAVELLER_EXPORT_URL?: string
@@ -386,7 +386,7 @@ function privacyPolicyResponse(): Response {
     <p>Vibe Travel is a mobile app from Revamp Studio. This policy explains what information the app uses, how it is handled, and how to contact us about privacy.</p>
 
     <h2>Information you provide</h2>
-    <p>Vibe Travel asks for birth date, birth time, and birth city so it can generate travel map recommendations and city notes. These profile details are stored locally on your device. Vibe Travel does not require an account, and it does not ask for your name, email address, phone number, contacts, photos, or current device location.</p>
+    <p>Vibe Travel asks for birth date, birth time, and birth city so it can generate travel map recommendations and city notes. These profile details and the resolved historical time zone are stored locally on your device. Birthplace coordinates and the birth date/time are used on your device to calculate planetary lines. Vibe Travel does not require an account, and it does not ask for your name, email address, phone number, contacts, photos, or current device location.</p>
 
     <h2>App activity and device information</h2>
     <p>We use analytics to understand whether the app works well and which screens or destination features are used. This may include app interactions, search-related activity, approximate app lifecycle events, and device or installation identifiers. We do not enable session replay.</p>
@@ -394,7 +394,7 @@ function privacyPolicyResponse(): Response {
     <h2>Third-party services</h2>
     <p>Vibe Travel uses service providers to support app functionality:</p>
     <ul>
-      <li>Mapbox is used for birth city search and geocoding. City search text and related request details may be processed by Mapbox.</li>
+      <li>Mapbox provides the interactive map, birth city search and geocoding. City search text, requested map areas and related request details may be processed by Mapbox.</li>
       <li>PostHog is used for product analytics such as screen views, app interactions, lifecycle events, and device or installation identifiers.</li>
       <li>Cloudflare hosts the Vibe Travel advisory and city activity API used by the app.</li>
       <li>Viator, Wikipedia, and Smartraveller data may be used to show activity ideas, city summaries, and travel advisory context.</li>
@@ -407,11 +407,16 @@ function privacyPolicyResponse(): Response {
     <h2>Data sharing</h2>
     <p>Information may be shared with the service providers listed above only as needed to operate, analyse, and improve the app. These providers process information under their own terms and privacy policies.</p>
 
+    <h2>Maps and chart codes you choose to share</h2>
+    <p>Share &amp; compare lets you deliberately export a map image or a chart code using your device or browser sharing controls, a download, or your clipboard. The image contains the planetary lines and a map legend. A combined image also contains the companion chart lines you chose to include. The chart code contains calculated planetary positions and an approximation flag, allowing a recipient to recreate and compare the map. These exports omit names, raw birth dates and times, birth cities and birthplace coordinates. The derived chart geometry can still be personal information; it is not guaranteed to be anonymous.</p>
+    <p>Choose your recipients carefully. A recipient can save, forward or import the image or code. The messaging, storage or other service you select handles the exported information under its own policies, and Vibe Travel cannot revoke copies after you share them. Sharing does not upload the chart to a Vibe Travel account or chart-sharing server.</p>
+    <p>A companion chart imported by code or calculated from details you enter is kept in the current app or browser session. It does not replace your own profile. Use another person's birth details only with their agreement. The companion birth-detail form is cleared after calculation; the calculated chart remains available until you remove it or the session ends.</p>
+
     <h2>Security</h2>
-    <p>Network requests are sent over encrypted connections. Local profile details remain on your device unless you choose to share information with a third-party site outside the app.</p>
+    <p>Network requests are sent over encrypted connections. Raw birth-profile details are stored locally. The sharing controls export the derived information described above only when you choose to share or download it.</p>
 
     <h2>Retention and deletion</h2>
-    <p>Because Vibe Travel does not use accounts, local profile details can be removed by clearing the app's storage or uninstalling the app. For questions about analytics data or privacy requests, contact us at the email below.</p>
+    <p>Because Vibe Travel does not use accounts, local profile details can be removed by clearing the app's storage or uninstalling the app. You can remove a companion chart with the Remove companion chart control. Native image exports use a temporary cache file that the app deletes after the share sheet returns. Downloaded images, copied chart codes, and copies held by recipients or selected third-party services remain under your or their control; removing a chart in Vibe Travel does not delete those copies. For questions about analytics data or privacy requests, contact us at the email below.</p>
 
     <h2>Children</h2>
     <p>Vibe Travel is intended for adults. It is not directed to children.</p>

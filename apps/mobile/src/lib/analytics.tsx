@@ -33,6 +33,8 @@ type AnalyticsEvent =
   | 'activity_link_opened'
   | 'insights_tab_viewed'
   | 'trip_intent_selected'
+  | 'ios_app_store_download_pressed'
+  | 'android_beta_download_pressed'
 
 export function track(event: AnalyticsEvent, properties?: PostHogEventProperties) {
   if (!posthog) return

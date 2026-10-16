@@ -35,6 +35,12 @@ export const useStore = create<AppState>((set) => ({
   activeUtilityPanel: null,
   highlightedCity: null,
   selectedTripIntent: savedTripIntent,
+  birthTimeNotice: null,
+  setBirthTimeNotice: (birthTimeNotice) => set({ birthTimeNotice }),
+  companionChart: null,
+  showCompanion: true,
+  setCompanionChart: (companionChart) => set({ companionChart, showCompanion: true }),
+  setShowCompanion: (showCompanion) => set({ showCompanion }),
 
   setView: (view) => set({ view }),
   setBirthData: (birthData) => {

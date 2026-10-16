@@ -1,42 +1,29 @@
 # Vibe Travel Play Listing Draft
 
+## App name
+
+Vibe Travel: Astrocartography
+
 ## Short description
 
-Map destinations around your birthday, birth time, and travel vibe.
+Explore astrocartography maps. Share and compare places to travel or live.
 
 ## Full description
 
-Vibe Travel turns your birth details into a personal travel map.
+Explore astrocartography with Vibe Travel: a personal map of planetary lines based on your birth date, time and birthplace, with automatic historical time-zone conversion.
 
-Add your birthday, birth time, and birth city to see destination ideas shaped by numerology, planetary lines, travel context, and local activity options. Explore a world map, compare suggested cities, and open detailed city pages with alignment notes, advisory context, and things to do.
+Read richer astrology interpretations for the Sun, Moon and planets across the Ascendant, Descendant, Midheaven and IC. Explore themes of identity, relationships, public life and home before browsing travel suggestions and activities.
 
-Use Vibe Travel to:
+Share a readable map image with friends, or send a chart code to view and overlay your planetary maps in Vibe Travel. Compare nearby lines for both people with Travel together and Live together lenses, and read each person’s influences. Shared exports omit names and raw birth details.
 
-- Build a personal map from your birth details.
-- Discover cities that match your current personal year.
-- Compare destination notes, planetary influences, and travel advisories.
-- Browse activity ideas for selected cities.
+Explore cities with numerology context, travel advisories and local activity ideas.
 
-Vibe Travel is designed for exploration and reflection. Travel advisory and activity information can change, so always check official sources before booking or travelling.
+Astrology and numerology are tools for reflection, not scientific predictions or compatibility measures. Accurate birth time and historical time-zone information matter. Check current official travel advice and practical requirements before travelling or relocating.
 
-## Category
+## Release notes
 
-Recommended: Travel & Local
+Share your astrocartography map as an image or chart code. Overlay a companion chart and explore places to travel or live together with explanations for both people. Read expanded planetary interpretations before travel recommendations. Birth times now use automatic historical time-zone conversion.
 
-Fallback: Lifestyle
+## Status
 
-## Required Inputs Still Missing
-
-- Privacy policy URL
-- Developer contact email
-- Developer website, if available
-- Developer phone, if required by the account
-- Content rating questionnaire answers
-- Data Safety form answers
-- Target audience declaration
-- Free or paid choice
-- Confirmation for Play Developer Programme Policies
-- Confirmation for Play app signing Terms of Service
-- Confirmation for US export laws
-- Organisation verification document for the Play Console account
-
+Draft metadata for 0.2.0; not published. Confirm store declarations and current account eligibility before submitting.

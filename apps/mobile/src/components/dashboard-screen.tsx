@@ -1,3 +1,4 @@
+import { router } from 'expo-router'
 import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   BackHandler,
@@ -27,13 +28,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Ionicons from '@expo/vector-icons/Ionicons'
 
 import { SkeletonBlock, SkeletonText } from '@/src/components/skeleton'
+import { useBirthTimeZone } from '@/src/components/birth-time-zone'
 import { TimeInput } from '@/src/components/time-input'
 import { WorldMapCard } from '@/src/components/world-map-card'
 import { cityAnalyticsProperties, track } from '@/src/lib/analytics'
 import { PLANET_COLORS, PLANETS, computeAstroLines } from '@/src/lib/astrocartography'
 import { preloadBirthCityAutocomplete, searchBirthCities, type GeoResult } from '@/src/lib/birthCityAutocomplete'
 import { enrichCitiesWithEnergy } from '@/src/lib/geo'
-import { getInterpretation } from '@/src/lib/interpretations'
+import { ANGLE_MEANINGS, ASTROLOGY_CONTEXT, getInterpretation } from '@/src/lib/interpretations'
 import { ENERGY_TIERS, LINE_TYPE_STYLES } from '@/src/lib/mapGuidance'
 import { calcSoulProfile } from '@/src/lib/numerology'
 import { TRIP_INTENT_PROFILES, getNumerologyNeeds, rankCitiesByNumerology } from '@/src/lib/recommendations'
@@ -579,6 +581,7 @@ function SettingsDrawer({
 
   const [date, setDate] = useState(birthData?.date ?? '')
   const [time, setTime] = useState(birthData?.time ?? '12:00')
+  const [timeKnown, setTimeKnown] = useState(!(birthData?.timeKnown === false || (birthData?.timeKnown === undefined && birthData?.time === '12:00')))
   const [cityQuery, setCityQuery] = useState(birthData?.city ?? '')
   const [cityResults, setCityResults] = useState<GeoResult[]>([])
   const [selectedGeo, setSelectedGeo] = useState<GeoResult | null>(
@@ -637,7 +640,8 @@ function SettingsDrawer({
     }
   }, [cityQuery, showResults])
 
-  const isValid = Boolean(date && selectedGeo)
+  const zone = useBirthTimeZone(date, timeKnown ? time : '12:00', selectedGeo, birthData)
+  const isValid = Boolean(date && (!timeKnown || time) && selectedGeo && zone.offsetMinutes !== null)
   const saveHint = isValid
     ? 'Your map will update with these birth details.'
     : 'Enter a birth date and choose your birth city to update the map.'
@@ -651,17 +655,22 @@ function SettingsDrawer({
     try {
       const newBirth: BirthData = {
         date,
-        time,
+        time: timeKnown ? time : '12:00',
+        timeKnown,
+        utcOffsetMinutes: zone.offsetMinutes!,
+        timeZone: zone.timeZone,
+        utcOffsetSource: zone.source,
         city: selectedGeo.place_name,
         lng: selectedGeo.center[0],
         lat: selectedGeo.center[1],
       }
 
       const profile = calcSoulProfile(date)
-      const astroLines = computeAstroLines(date, time)
+      const astroLines = computeAstroLines(date, newBirth.time, newBirth.utcOffsetMinutes)
       const sourceCities = await loadCities()
       const enrichedCities = enrichCitiesWithEnergy(sourceCities, astroLines)
 
+      useStore.getState().setBirthTimeNotice(null)
       setBirthData(newBirth)
       setProfile(profile)
       setAstroLines(astroLines)
@@ -725,6 +734,8 @@ function SettingsDrawer({
               </View>
             </View>
 
+            {birthData?.utcOffsetMinutes === undefined ? <Text style={styles.sectionCopySmall}>Your saved map used UTC without a confirmed local offset. Confirm your birth city and save to recalculate it with the historical time zone.</Text> : null}
+
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Birth city</Text>
               <TextInput
@@ -783,6 +794,10 @@ function SettingsDrawer({
                 </View>
               ) : null}
             </View>
+
+            <Pressable accessibilityRole="checkbox" accessibilityLabel="Birth time is known" accessibilityState={{ checked: timeKnown }} onPress={() => setTimeKnown(!timeKnown)} style={{ paddingVertical: 10 }}><Text style={styles.sectionCopySmall}>{timeKnown ? '☑' : '☐'} Birth time is known</Text></Pressable>
+            {!timeKnown ? <Text style={styles.sectionCopySmall}>We will use an approximate noon chart. Without a known birth time, planetary lines may shift substantially.</Text> : null}
+            {zone.control}
 
             <Pressable
               accessibilityHint={isValid ? 'Recalculates your map and saves the new details.' : 'Enter a birth date and choose a city first.'}
@@ -904,7 +919,7 @@ function InsightsDrawer({
   const selectedTripIntent = useStore((state) => state.selectedTripIntent)
   const setSelectedTripIntent = useStore((state) => state.setSelectedTripIntent)
   const insets = useSafeAreaInsets()
-  const [tab, setTab] = useState<InsightTab>('locations')
+  const [tab, setTab] = useState<InsightTab>('about')
   const [advisoryLevelsByCountry, setAdvisoryLevelsByCountry] = useState<AdvisoryLevelMap>({})
 
   const needs = useMemo(() => (profile ? getNumerologyNeeds(profile) : null), [profile])
@@ -1020,7 +1035,7 @@ function InsightsDrawer({
 
   return (
     <Drawer
-      title={tab === 'locations' ? 'Best-fit places' : 'Your cycle'}
+      title={tab === 'locations' ? 'Best-fit places' : 'Your map & cycle'}
       subtitle={`Year ${profile.personalYear}`}
       onClose={onClose}
       width={width}
@@ -1030,25 +1045,8 @@ function InsightsDrawer({
     >
       <View accessibilityLabel="Insights sections" accessibilityRole="tablist" style={styles.segmentedControl}>
         <Pressable
-          accessibilityHint="Shows the list of best-fit places."
-          accessibilityLabel="Locations"
-          accessibilityRole="tab"
-          accessibilityState={{ selected: tab === 'locations' }}
-          onPress={() => {
-            setTab('locations')
-            track('insights_tab_viewed', { tab: 'locations' })
-          }}
-          style={({ pressed }) => [
-            styles.segment,
-            tab === 'locations' ? styles.segmentActive : null,
-            pressed ? styles.segmentPressed : null,
-          ]}
-        >
-          <Text style={[styles.segmentText, tab === 'locations' ? styles.segmentTextActive : null]}>Locations</Text>
-        </Pressable>
-        <Pressable
-          accessibilityHint="Shows your numerology cycle and timing snapshot."
-          accessibilityLabel="About"
+          accessibilityHint="Explains your astrocartography map, then your numerology cycle."
+          accessibilityLabel="Your astrology"
           accessibilityRole="tab"
           accessibilityState={{ selected: tab === 'about' }}
           onPress={() => {
@@ -1061,7 +1059,24 @@ function InsightsDrawer({
             pressed ? styles.segmentPressed : null,
           ]}
         >
-          <Text style={[styles.segmentText, tab === 'about' ? styles.segmentTextActive : null]}>About</Text>
+          <Text style={[styles.segmentText, tab === 'about' ? styles.segmentTextActive : null]}>Your astrology</Text>
+        </Pressable>
+        <Pressable
+          accessibilityHint="Shows the list of best-fit places."
+          accessibilityLabel="Travel ideas"
+          accessibilityRole="tab"
+          accessibilityState={{ selected: tab === 'locations' }}
+          onPress={() => {
+            setTab('locations')
+            track('insights_tab_viewed', { tab: 'locations' })
+          }}
+          style={({ pressed }) => [
+            styles.segment,
+            tab === 'locations' ? styles.segmentActive : null,
+            pressed ? styles.segmentPressed : null,
+          ]}
+        >
+          <Text style={[styles.segmentText, tab === 'locations' ? styles.segmentTextActive : null]}>Travel ideas</Text>
         </Pressable>
       </View>
 
@@ -1218,6 +1233,12 @@ function InsightsDrawer({
         ) : (
           <>
             <View style={styles.infoCard}>
+              <Text style={styles.infoTitle}>Read your astrocartography map</Text>
+              <Text style={styles.infoBody}>{ASTROLOGY_CONTEXT}</Text>
+              {Object.entries(ANGLE_MEANINGS).map(([angle, details]) => <View key={angle} style={{ gap: 6, marginTop: 12 }}><Text style={styles.sectionTitleSmall}>{angle} — {details.name}</Text><Text style={styles.infoBody}>{details.meaning}</Text></View>)}
+              <Text style={styles.infoFootnote}>Open a city to read each nearby planetary influence. Then explore Travel ideas for travel recommendations.</Text>
+            </View>
+            <View style={styles.infoCard}>
               <Text style={styles.infoTitle}>{profile.lifeStage}</Text>
               <Text style={styles.infoBody}>{getCycleYearLabel(profile.personalYear)}. {profile.lifeStageDescription}</Text>
               <Text style={styles.infoFootnote}>{INSIGHT_METHOD}</Text>
@@ -1341,6 +1362,21 @@ function CityDrawer({
         </View>
 
         <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitleSmall}>Planetary influences</Text>
+          {uniqueLines.map((line) => (
+            <View key={`${line.planet}-${line.lineType}`} style={styles.influenceCardLarge}>
+              <View style={styles.influenceHeader}>
+                <View style={[styles.influenceDotLarge, { backgroundColor: PLANET_COLORS[line.planet] }]} />
+                <Text style={styles.influenceTitle}>
+                  {line.planet} on {LINE_LABELS[line.lineType]}
+                </Text>
+              </View>
+              <Text style={styles.sectionCopySmall}>{getInterpretation(line.planet, line.lineType)}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitleSmall}>City information</Text>
           {wikiLoading ? (
             <SkeletonText lines={3} lineHeight={13} widths={['100%', '92%', '68%']} />
@@ -1350,6 +1386,41 @@ function CityDrawer({
             </Text>
           )}
         </View>
+
+        {advisoryState === null ? (
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionTitleSmall}>Travel advisory</Text>
+            <View style={styles.advisoryPanel}>
+              <View style={styles.advisoryHeader}>
+                <SkeletonBlock height={16} width="44%" radius={radii.pill} />
+                <SkeletonBlock height={28} width={78} radius={radii.pill} />
+              </View>
+              <SkeletonBlock height={16} width="58%" radius={radii.pill} />
+              <SkeletonText lines={2} lineHeight={13} widths={['100%', '66%']} />
+            </View>
+          </View>
+        ) : advisory || advisoryState?.status === 'unavailable' ? (
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionTitleSmall}>Travel advisory</Text>
+            {advisory ? (
+              <View style={[styles.advisoryPanel, { backgroundColor: ADVISORY_STYLES[advisory.adviceLevel].panel }]}>
+                <View style={styles.advisoryHeader}>
+                  <Text style={styles.advisoryCountry}>{advisory.matchedCountry}</Text>
+                  <View style={[styles.advisoryBadge, { backgroundColor: ADVISORY_STYLES[advisory.adviceLevel].badgeBg }]}>
+                    <Text style={[styles.advisoryBadgeText, { color: ADVISORY_STYLES[advisory.adviceLevel].badgeText }]}>
+                      Level {advisory.adviceLevel}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.advisoryLabel}>{advisory.adviceLabel}</Text>
+                <Text style={styles.sectionCopySmall}>{advisory.summary}</Text>
+                <Text style={styles.footnote}>Updated {formatAdvisoryDate(advisory.updatedAt)}</Text>
+              </View>
+            ) : (
+              <Text style={styles.sectionCopySmall}>The advisory feed is temporarily unavailable for this destination.</Text>
+            )}
+          </View>
+        ) : null}
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitleSmall}>Things to do here</Text>
@@ -1431,61 +1502,16 @@ function CityDrawer({
           ) : null}
         </View>
 
-        {advisoryState === null ? (
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionTitleSmall}>Travel advisory</Text>
-            <View style={styles.advisoryPanel}>
-              <View style={styles.advisoryHeader}>
-                <SkeletonBlock height={16} width="44%" radius={radii.pill} />
-                <SkeletonBlock height={28} width={78} radius={radii.pill} />
-              </View>
-              <SkeletonBlock height={16} width="58%" radius={radii.pill} />
-              <SkeletonText lines={2} lineHeight={13} widths={['100%', '66%']} />
-            </View>
-          </View>
-        ) : advisory || advisoryState?.status === 'unavailable' ? (
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionTitleSmall}>Travel advisory</Text>
-            {advisory ? (
-              <View style={[styles.advisoryPanel, { backgroundColor: ADVISORY_STYLES[advisory.adviceLevel].panel }]}>
-                <View style={styles.advisoryHeader}>
-                  <Text style={styles.advisoryCountry}>{advisory.matchedCountry}</Text>
-                  <View style={[styles.advisoryBadge, { backgroundColor: ADVISORY_STYLES[advisory.adviceLevel].badgeBg }]}>
-                    <Text style={[styles.advisoryBadgeText, { color: ADVISORY_STYLES[advisory.adviceLevel].badgeText }]}>
-                      Level {advisory.adviceLevel}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.advisoryLabel}>{advisory.adviceLabel}</Text>
-                <Text style={styles.sectionCopySmall}>{advisory.summary}</Text>
-                <Text style={styles.footnote}>Updated {formatAdvisoryDate(advisory.updatedAt)}</Text>
-              </View>
-            ) : (
-              <Text style={styles.sectionCopySmall}>The advisory feed is temporarily unavailable for this destination.</Text>
-            )}
-          </View>
-        ) : null}
-
-        <View style={styles.sectionBlock}>
-          <Text style={styles.sectionTitleSmall}>Planetary influences</Text>
-          {uniqueLines.map((line) => (
-            <View key={`${line.planet}-${line.lineType}`} style={styles.influenceCardLarge}>
-              <View style={styles.influenceHeader}>
-                <View style={[styles.influenceDotLarge, { backgroundColor: PLANET_COLORS[line.planet] }]} />
-                <Text style={styles.influenceTitle}>
-                  {line.planet} on {LINE_LABELS[line.lineType]}
-                </Text>
-              </View>
-              <Text style={styles.sectionCopySmall}>{getInterpretation(line.planet, line.lineType)}</Text>
-            </View>
-          ))}
-        </View>
       </ScrollView>
     </Drawer>
   )
 }
 
 export function DashboardScreen() {
+  const birthTimeNotice = useStore((state) => state.birthTimeNotice)
+  const setBirthTimeNotice = useStore((state) => state.setBirthTimeNotice)
+  const companionChart = useStore((state) => state.companionChart)
+  const showCompanion = useStore((state) => state.showCompanion)
   const profile = useStore((state) => state.profile)
   const selectedCity = useStore((state) => state.selectedCity)
   const activeUtilityPanel = useStore((state) => state.activeUtilityPanel)
@@ -1568,6 +1594,11 @@ export function DashboardScreen() {
         <WorldMapCard onCityPress={openCity} />
       </View>
 
+      <View style={{ position: 'absolute', bottom: insets.bottom + 16, left: 12, right: 12, gap: 8 }}>
+        {companionChart && showCompanion ? <View pointerEvents="none" style={{ backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, padding: 10 }}><Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>You: planetary colours · Companion: navy dashed lines</Text></View> : null}
+        {birthTimeNotice ? <View style={{ backgroundColor: colors.surface, borderRadius: 14, padding: 14, gap: 8 }}><Text style={{ color: colors.text, lineHeight: 20 }}>{birthTimeNotice.message}</Text><Pressable accessibilityRole="button" onPress={() => birthTimeNotice.needsReview ? setActiveUtilityPanel('settings') : setBirthTimeNotice(null)}><Text style={{ color: colors.accentStrong, fontWeight: '700' }}>{birthTimeNotice.needsReview ? 'Review birth time' : 'Got it'}</Text></Pressable></View> : null}
+      </View>
+
       {activeUtilityPanel ? (
         <DismissBackdrop
           accessibilityHint="Dismisses the open panel."
@@ -1580,6 +1611,7 @@ export function DashboardScreen() {
       ) : null}
 
       <View style={[styles.topLeftRail, { top: insets.top + 12 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Share and compare maps" onPress={() => { setActiveUtilityPanel(null); router.push('/together') }} style={[styles.floatingButton, { padding: 12 }]}><Ionicons name="people-outline" size={20} color={colors.accentStrong} /><Text style={{ color: colors.text, fontWeight: '700', fontSize: 12 }}>Share & compare</Text></Pressable>
         <FloatingButton
           active={activeUtilityPanel === 'settings'}
           compact={compactUtilityButtons}

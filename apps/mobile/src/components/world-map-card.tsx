@@ -1,8 +1,11 @@
 import { Platform } from 'react-native'
 
-import type { CityWithEnergy } from '@/src/types'
+import type { AstroLine, CityWithEnergy } from '@/src/types'
 
 type WorldMapCardProps = {
+  displayLines?: AstroLine[]
+  displayCities?: CityWithEnergy[]
+  otherLines?: AstroLine[]
   onCityPress: (city: CityWithEnergy) => void
 }
 

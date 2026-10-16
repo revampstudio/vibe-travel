@@ -1,6 +1,10 @@
 export interface BirthData {
   date: string // YYYY-MM-DD
   time: string // HH:MM (24h)
+  utcOffsetMinutes?: number // Historical local offset from UTC, including daylight saving
+  timeZone?: string
+  utcOffsetSource?: 'automatic' | 'manual'
+  timeKnown?: boolean
   city: string
   lat: number
   lng: number
@@ -90,6 +94,12 @@ export interface AppState {
   activeUtilityPanel: UtilityPanelState
   highlightedCity: string | null
   selectedTripIntent: TripIntent
+  birthTimeNotice: { message: string; needsReview: boolean } | null
+  setBirthTimeNotice: (notice: { message: string; needsReview: boolean } | null) => void
+  companionChart: import('../lib/chartSharing').SharedChart | null
+  showCompanion: boolean
+  setCompanionChart: (chart: import('../lib/chartSharing').SharedChart | null) => void
+  setShowCompanion: (show: boolean) => void
 
   setView: (view: ViewState) => void
   setBirthData: (data: BirthData | null) => void
