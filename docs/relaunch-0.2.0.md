@@ -75,3 +75,21 @@ VIBE_NO_WATCHMAN=1 EXPO_OFFLINE=1 npx expo start --dev-client --port 8087
 - Use a fresh incremented native build number/versionCode through the existing EAS remote version workflow. Do not reuse previous store build identifiers.
 - The privacy-policy source in `worker/src/index.ts` now describes deliberate image/code sharing, derived personal geometry, recipient copies, session-only companions and temporary-file retention. Deployment of that policy remains outstanding; publish and verify it only after the QA gate and before releasing 0.2.0.
 - Prepare current screenshots for Share & compare and richer descriptions; old store screenshots do not demonstrate these features.
+
+## Privacy policy deployment preparation
+
+Verified on 17 October 2026 without publishing:
+
+- Existing Wrangler OAuth access can read the account and write Workers. Target: `vibe-travel-advisory-api`, account `88842855bd2af0776d9f5de7ef06ff1e`. No credentials, grants or resources were created.
+- The active version is `f0c5b31c-2b18-4681-941b-11b15116d5e8` (17 May 2026). Its only binding is the existing `VIATOR_API_KEY` secret. Remote compatibility date is `2026-02-14`, matching the repository; compatibility flags and tail consumers are empty, Logpush is disabled, and no additional placement/observability settings were returned. Preserve these settings and the existing secret.
+- Wrangler 4.124.0 dry-run passed: 313.35 KiB total, 55.99 KiB gzip. An initial build in the checkout stalled in a filesystem open; an exact copy of the tracked Worker source/config at `/tmp/vibe-policy-build` built successfully. The generated artifact is `/tmp/vibe-policy-dry-run/index.js`.
+- The current deployed script was retrieved read-only and compared with the prepared bundle. All code outside `PRIVACY_POLICY_UPDATED` and `privacyPolicyResponse` is byte-for-byte identical. Both `/privacy` and `/privacy-policy` return HTTP 200 with the new sharing and retention text when invoked locally, without outbound requests.
+- The public policy still returns the 17 May text. Deployment is ready but intentionally remains pending the native QA gate.
+
+After the QA gate, run from the prepared `/tmp/vibe-policy-build` directory (recreate the exact source/config copy if the temporary directory has gone away):
+
+```sh
+CLOUDFLARE_ACCOUNT_ID=88842855bd2af0776d9f5de7ef06ff1e wrangler deploy --keep-vars --strict --message "Update Vibe Travel 0.2.0 sharing privacy policy"
+```
+
+`--keep-vars` preserves dashboard variables, and secrets are retained by deployment. `--strict` prevents silently overriding conflicting remote settings; see the [Wrangler deployment reference](https://developers.cloudflare.com/workers/wrangler/commands/workers/#deploy). Do not change the compatibility date, bindings, routes or other runtime settings for this policy update. Verify the new date and sharing section at `https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev/privacy` and its `/privacy-policy` alias after publishing. If rollback is needed, the recorded active version above is the rollback target.
