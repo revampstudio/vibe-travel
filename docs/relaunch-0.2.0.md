@@ -1,6 +1,6 @@
 # Vibe Travel 0.2.0 relaunch preparation
 
-Status: implementation and local checks prepared; independent runtime QA and store review remain required. No release, submission, metadata publication or production deployment is represented by this document.
+Status: implementation, web QA and critical native QA passed. Replacement signed builds and privacy publication are being prepared; store submission/review remain outstanding. No app-store release or metadata publication is represented by this document.
 
 ## Request → implementation
 
@@ -94,9 +94,9 @@ CLOUDFLARE_ACCOUNT_ID=88842855bd2af0776d9f5de7ef06ff1e wrangler deploy --keep-va
 
 `--keep-vars` preserves dashboard variables, and secrets are retained by deployment. `--strict` prevents silently overriding conflicting remote settings; see the [Wrangler deployment reference](https://developers.cloudflare.com/workers/wrangler/commands/workers/#deploy). Do not change the compatibility date, bindings, routes or other runtime settings for this policy update. Verify the new date and sharing section at `https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev/privacy` and its `/privacy-policy` alias after publishing. If rollback is needed, the recorded active version above is the rollback target.
 
-## Android production build preparation
+## Superseded production build preparation
 
-On 17 October 2026, [EAS build `58a8a28e-d79b-48f9-8806-6e9939787cb2`](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/58a8a28e-d79b-48f9-8806-6e9939787cb2) started for Android production/STORE distribution from commit `4b95ba2e7e091a176da7e2ce23c9e81ffe954c8b`. Its status was `IN_PROGRESS` when recorded. App version is `0.2.0`; EAS remote versionCode advanced from `16` to `17`. The package remains `com.mitchellrben.vibetravelmobile`.
+On 17 October 2026, [EAS build `58a8a28e-d79b-48f9-8806-6e9939787cb2`](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/58a8a28e-d79b-48f9-8806-6e9939787cb2) started for Android production/STORE distribution from commit `4b95ba2e7e091a176da7e2ce23c9e81ffe954c8b`. This build was deliberately **CANCELED** after native iOS QA found an incorrect PNG export scale. It is superseded and must not be submitted or released. App version is `0.2.0`; EAS remote versionCode advanced from `16` to `17`. The package remains `com.mitchellrben.vibetravelmobile`.
 
 - EAS reused the existing default Android keystore (`Build Credentials tuRCFhtvJb`) with `--freeze-credentials`. No keys, certificates or grants were created.
 - Existing production EAS Mapbox configuration matches the recovered public app token. EAS also loaded the existing PostHog variables. The advisory API uses the existing default Worker URL. No environment variables needed changing.
@@ -109,3 +109,8 @@ Build command used from `apps/mobile`:
 ```sh
 eas build --platform android --profile production --non-interactive --freeze-credentials --no-wait --message 'Vibe Travel 0.2.0 sharing, comparison and astrology relaunch; native QA gate pending'
 ```
+
+
+The initial iOS production build, [EAS `e6b3357a-9023-4408-98e4-f9147c63a5b4`](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/e6b3357a-9023-4408-98e4-f9147c63a5b4), was also deliberately **CANCELED** for the same defect. It used version `0.2.0` / build `18` from commit `9620d37` with the existing certificate and provisioning profile under `--freeze-credentials`. No Apple credential or agreement was created or accepted. This job is superseded and must not be submitted or released.
+
+The correction renders the native SVG at the export point size required by each device's pixel density and scales its on-screen preview independently. Independent iOS QA then opened the actual owner PNG (1440 × 1020, approximately 332 KB) and combined PNG (1440 × 1020, approximately 436 KB), confirming full map coverage, legible legend, companion dashes and subtitle. Returning/canceling retained both charts and the owner's exact 08:35 Brisbane profile. Independent Android QA also passed on the task Android 15 / API 35 emulator: actual owner and combined PNGs were 1440 × 1020 and readable; native Mapbox rendered; companion overlay toggled correctly; Travel suggested Rio Negro while Live suggested Polatlı; and the owner profile remained exactly 1992-07-14, 08:35, Brisbane, known time, UTC+10 after sharing/canceling. The task emulator’s Gboard stylus-handwriting mode required disabling for ordinary keyboard input; this was an emulator input configuration issue and required no app workaround. Fresh signed production jobs will use the fixed commit after this completed gate.

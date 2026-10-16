@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Platform, Pressable, Text, View } from 'react-native'
+import { PixelRatio, Platform, Pressable, Text, View } from 'react-native'
 import Svg, { SvgXml } from 'react-native-svg'
 import * as Sharing from 'expo-sharing'
 import * as FileSystem from 'expo-file-system/legacy'
@@ -11,7 +11,11 @@ export function ShareMapImage({ lines, companion = [], approximate = false }: { 
   const ref = useRef<Svg>(null)
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
+  const [previewWidth, setPreviewWidth] = useState(0)
   const xml = useMemo(() => mapPostcardSvg(lines, companion, approximate), [lines, companion, approximate])
+  const exportWidth = 1440 / PixelRatio.get()
+  const exportHeight = 1020 / PixelRatio.get()
+  const previewScale = Math.min(previewWidth / exportWidth, 250 / exportHeight)
   async function share() {
     setBusy(true); setStatus('')
     try {
@@ -36,7 +40,13 @@ export function ShareMapImage({ lines, companion = [], approximate = false }: { 
         const data = await new Promise<string>((resolve,reject) => {
           const timer = setTimeout(() => reject(new Error('Image export timed out')), 10000)
           if (!ref.current) { clearTimeout(timer); reject(new Error('Map is still loading')); return }
-          ref.current.toDataURL(value => { clearTimeout(timer); resolve(value) }, { width: 1440, height: 1020 })
+          // iOS renders using the SVG view's actual bounds, even when the output
+          // canvas has another size. Its layout stays at export size; only the
+          // surrounding preview View is scaled to fit the screen.
+          const size = Platform.OS === 'ios'
+            ? { width: exportWidth, height: exportHeight }
+            : { width: 1440, height: 1020 }
+          ref.current.toDataURL(value => { clearTimeout(timer); resolve(value) }, size)
         })
         const uri = FileSystem.cacheDirectory + 'vibe-travel-map.png'
         await FileSystem.writeAsStringAsync(uri, data, { encoding: FileSystem.EncodingType.Base64 })
@@ -47,7 +57,13 @@ export function ShareMapImage({ lines, companion = [], approximate = false }: { 
     finally { setBusy(false) }
   }
   return <View style={{ gap: 12 }}>
-    <SvgXml xml={xml} override={{ ref, width: '100%', height: 250 }} />
+    {Platform.OS === 'web'
+      ? <SvgXml xml={xml} override={{ width: '100%', height: 250 }} />
+      : <View onLayout={event => setPreviewWidth(event.nativeEvent.layout.width)} style={{ width: '100%', height: 250, overflow: 'hidden' }}>
+        {previewWidth > 0 ? <View pointerEvents="none" style={{ width: exportWidth, height: exportHeight, position: 'absolute', left: (previewWidth - exportWidth * previewScale) / 2, top: (250 - exportHeight * previewScale) / 2, transform: [{ scale: previewScale }], transformOrigin: 'top left' }}>
+          <SvgXml xml={xml} override={{ ref, width: exportWidth, height: exportHeight }} />
+        </View> : null}
+      </View>}
     <Pressable accessibilityRole="button" disabled={busy} onPress={() => void share()} style={{ backgroundColor: colors.accentStrong, padding: 15, borderRadius: 12 }}><Text style={{ color: 'white', fontWeight: '700', textAlign: 'center' }}>{busy ? 'Preparing image…' : 'Share map image'}</Text></Pressable>
     {status ? <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>{status}</Text> : null}
   </View>

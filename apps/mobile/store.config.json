@@ -30,7 +30,7 @@
       "en-US": {
         "title": "Vibe Travel: Astrocartography",
         "subtitle": "Explore & compare birth maps",
-        "description": "Explore astrocartography with Vibe Travel: a personal map of planetary lines based on your birth date, time and historical UTC offset.\n\nRead richer astrology interpretations for the Sun, Moon and planets across the Ascendant, Descendant, Midheaven and IC. Explore themes of identity, relationships, public life and home before browsing travel suggestions and activities.\n\nShare a readable map image with friends, or send a chart code to view and overlay your planetary maps in Vibe Travel. Compare nearby lines for both people with Travel together and Live together lenses, and read each person\u2019s influences. Shared exports omit names and raw birth details.\n\nExplore cities with numerology context, travel advisories and local activity ideas.\n\nAstrology and numerology are tools for reflection, not scientific predictions or compatibility measures. Accurate birth time and historical time-zone information matter. Check current official travel advice and practical requirements before travelling or relocating.",
+        "description": "Explore astrocartography with Vibe Travel: a personal map of planetary lines based on your birth date, time and birthplace, with automatic historical time-zone conversion.\n\nRead richer astrology interpretations for the Sun, Moon and planets across the Ascendant, Descendant, Midheaven and IC. Explore themes of identity, relationships, public life and home before browsing travel suggestions and activities.\n\nShare a readable map image with friends, or send a chart code to view and overlay your planetary maps in Vibe Travel. Compare nearby lines for both people with Travel together and Live together lenses, and read each person\u2019s influences. Shared exports omit names and raw birth details.\n\nExplore cities with numerology context, travel advisories and local activity ideas.\n\nAstrology and numerology are tools for reflection, not scientific predictions or compatibility measures. Accurate birth time and historical time-zone information matter. Check current official travel advice and practical requirements before travelling or relocating.",
         "keywords": [
           "astrocartography",
           "astrology",
@@ -41,7 +41,7 @@
           "numerology",
           "planetary lines"
         ],
-        "releaseNotes": "Share your astrocartography map as an image or chart code. Overlay a companion chart and explore places to travel or live together with explanations for both people. Read expanded planetary interpretations before travel recommendations. Confirm your historical birth-time UTC offset for more accurate map calculations.",
+        "releaseNotes": "Share your astrocartography map as an image or chart code. Overlay a companion chart and explore places to travel or live together with explanations for both people. Read expanded planetary interpretations before travel recommendations. Birth times now use automatic historical time-zone conversion.",
         "promoText": "Explore your astrocartography map, share it with friends and compare planetary lines for travel or a longer stay.",
         "supportUrl": "https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev/privacy",
         "privacyPolicyUrl": "https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev/privacy"

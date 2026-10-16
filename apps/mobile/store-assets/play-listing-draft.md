@@ -10,7 +10,7 @@ Explore astrocartography maps. Share and compare places to travel or live.
 
 ## Full description
 
-Explore astrocartography with Vibe Travel: a personal map of planetary lines based on your birth date, time and historical UTC offset.
+Explore astrocartography with Vibe Travel: a personal map of planetary lines based on your birth date, time and birthplace, with automatic historical time-zone conversion.
 
 Read richer astrology interpretations for the Sun, Moon and planets across the Ascendant, Descendant, Midheaven and IC. Explore themes of identity, relationships, public life and home before browsing travel suggestions and activities.
 
@@ -22,7 +22,7 @@ Astrology and numerology are tools for reflection, not scientific predictions or
 
 ## Release notes
 
-Share your astrocartography map as an image or chart code. Overlay a companion chart and explore places to travel or live together with explanations for both people. Read expanded planetary interpretations before travel recommendations. Confirm your historical birth-time UTC offset for more accurate map calculations.
+Share your astrocartography map as an image or chart code. Overlay a companion chart and explore places to travel or live together with explanations for both people. Read expanded planetary interpretations before travel recommendations. Birth times now use automatic historical time-zone conversion.
 
 ## Status
 
