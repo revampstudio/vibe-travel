@@ -1,6 +1,6 @@
 # Vibe Travel 0.2.0 relaunch preparation
 
-Status: implementation, web QA and critical native QA passed. Replacement signed builds and privacy publication are being prepared; store submission/review remain outstanding. No app-store release or metadata publication is represented by this document.
+Status: implementation, web QA and critical native QA passed. The updated sharing privacy policy is live, and replacement signed production builds are running. Store submission/review remain outstanding. No app-store release or metadata publication is represented by this document.
 
 ## Request → implementation
 
@@ -73,20 +73,20 @@ VIBE_NO_WATCHMAN=1 EXPO_OFFLINE=1 npx expo start --dev-client --port 8087
 - Confirm Apple agreements/account access and current review status before submission. Store name availability must be checked during metadata submission.
 - Confirm Google Play production eligibility and any testing requirements before promising a production launch.
 - Use a fresh incremented native build number/versionCode through the existing EAS remote version workflow. Do not reuse previous store build identifiers.
-- The privacy-policy source in `worker/src/index.ts` now describes deliberate image/code sharing, derived personal geometry, recipient copies, session-only companions and temporary-file retention. Deployment of that policy remains outstanding; publish and verify it only after the QA gate and before releasing 0.2.0.
+- The privacy-policy source in `worker/src/index.ts` now describes deliberate image/code sharing, derived personal geometry, recipient copies, session-only companions and temporary-file retention. The policy was published after the native QA gate and both public aliases were verified before any app-store submission.
 - Prepare current screenshots for Share & compare and richer descriptions; old store screenshots do not demonstrate these features.
 
-## Privacy policy deployment preparation
+## Privacy policy publication
 
-Verified on 17 October 2026 without publishing:
+Prepared and published on 17 October 2026 after the native QA gate:
 
 - Existing Wrangler OAuth access can read the account and write Workers. Target: `vibe-travel-advisory-api`, account `88842855bd2af0776d9f5de7ef06ff1e`. No credentials, grants or resources were created.
-- The active version is `f0c5b31c-2b18-4681-941b-11b15116d5e8` (17 May 2026). Its only binding is the existing `VIATOR_API_KEY` secret. Remote compatibility date is `2026-02-14`, matching the repository; compatibility flags and tail consumers are empty, Logpush is disabled, and no additional placement/observability settings were returned. Preserve these settings and the existing secret.
+- The prior active version was `f0c5b31c-2b18-4681-941b-11b15116d5e8` (17 May 2026); a fresh read immediately before publication confirmed it was unchanged. It is the rollback target. Its only binding is the existing `VIATOR_API_KEY` secret. Remote compatibility date is `2026-02-14`, matching the repository; compatibility flags and tail consumers are empty, Logpush is disabled, and no additional placement/observability settings were returned. Preserve these settings and the existing secret.
 - Wrangler 4.124.0 dry-run passed: 313.35 KiB total, 55.99 KiB gzip. An initial build in the checkout stalled in a filesystem open; an exact copy of the tracked Worker source/config at `/tmp/vibe-policy-build` built successfully. The generated artifact is `/tmp/vibe-policy-dry-run/index.js`.
 - The current deployed script was retrieved read-only and compared with the prepared bundle. All code outside `PRIVACY_POLICY_UPDATED` and `privacyPolicyResponse` is byte-for-byte identical. Both `/privacy` and `/privacy-policy` return HTTP 200 with the new sharing and retention text when invoked locally, without outbound requests.
-- The public policy still returns the 17 May text. Deployment is ready but intentionally remains pending the native QA gate.
+- Deployment succeeded as version `edab8be6-14b7-4941-870f-3812c5a00b26`. Both `/privacy` and `/privacy-policy` return HTTP 200, the 17 October 2026 date and the sharing section. The health route and Japan advisory route also return HTTP 200. The exact release-script HTTP client passes with its explicit `VibeTravelReleasePreflight/1.0` user agent. Post-deployment inspection confirms the existing secret binding and `2026-02-14` compatibility date were preserved.
 
-After the QA gate, run from the prepared `/tmp/vibe-policy-build` directory (recreate the exact source/config copy if the temporary directory has gone away):
+The authorized deployment used the prepared `/tmp/vibe-policy-build` directory:
 
 ```sh
 CLOUDFLARE_ACCOUNT_ID=88842855bd2af0776d9f5de7ef06ff1e wrangler deploy --keep-vars --strict --message "Update Vibe Travel 0.2.0 sharing privacy policy"
@@ -113,4 +113,18 @@ eas build --platform android --profile production --non-interactive --freeze-cre
 
 The initial iOS production build, [EAS `e6b3357a-9023-4408-98e4-f9147c63a5b4`](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/e6b3357a-9023-4408-98e4-f9147c63a5b4), was also deliberately **CANCELED** for the same defect. It used version `0.2.0` / build `18` from commit `9620d37` with the existing certificate and provisioning profile under `--freeze-credentials`. No Apple credential or agreement was created or accepted. This job is superseded and must not be submitted or released.
 
-The correction renders the native SVG at the export point size required by each device's pixel density and scales its on-screen preview independently. Independent iOS QA then opened the actual owner PNG (1440 × 1020, approximately 332 KB) and combined PNG (1440 × 1020, approximately 436 KB), confirming full map coverage, legible legend, companion dashes and subtitle. Returning/canceling retained both charts and the owner's exact 08:35 Brisbane profile. Independent Android QA also passed on the task Android 15 / API 35 emulator: actual owner and combined PNGs were 1440 × 1020 and readable; native Mapbox rendered; companion overlay toggled correctly; Travel suggested Rio Negro while Live suggested Polatlı; and the owner profile remained exactly 1992-07-14, 08:35, Brisbane, known time, UTC+10 after sharing/canceling. The task emulator’s Gboard stylus-handwriting mode required disabling for ordinary keyboard input; this was an emulator input configuration issue and required no app workaround. Fresh signed production jobs will use the fixed commit after this completed gate.
+The correction renders the native SVG at the export point size required by each device's pixel density and scales its on-screen preview independently. Independent iOS QA then opened the actual owner PNG (1440 × 1020, approximately 332 KB) and combined PNG (1440 × 1020, approximately 436 KB), confirming full map coverage, legible legend, companion dashes and subtitle. Returning/canceling retained both charts and the owner's exact 08:35 Brisbane profile. Independent Android QA also passed on the task Android 15 / API 35 emulator: actual owner and combined PNGs were 1440 × 1020 and readable; native Mapbox rendered; companion overlay toggled correctly; Travel suggested Rio Negro while Live suggested Polatlı; and the owner profile remained exactly 1992-07-14, 08:35, Brisbane, known time, UTC+10 after sharing/canceling. The task emulator’s Gboard stylus-handwriting mode required disabling for ordinary keyboard input; this was an emulator input configuration issue and required no app workaround. The replacement signed production jobs below use the fixed commit after this completed gate.
+
+
+## Replacement signed production builds
+
+Both builds were started after the completed web/iOS/Android critical QA gate from fixed source commit `7ed7eca1ac0b1491241bf7f8b46792c51ad69bd7`. App code remains frozen at that commit; subsequent changes to this release log do not change the reviewed app artifact.
+
+| Platform | EAS build | Version | Status when recorded |
+| --- | --- | --- | --- |
+| Android | [35cc02da-149e-4ea9-a7f5-73d6ea9964bc](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/35cc02da-149e-4ea9-a7f5-73d6ea9964bc) | 0.2.0 (18) | IN_PROGRESS |
+| iOS | [eb804ed7-53bd-4b21-afa7-8d210a146aec](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/eb804ed7-53bd-4b21-afa7-8d210a146aec) | 0.2.0 (19) | IN_PROGRESS |
+
+Both use the existing production environment and frozen remote signing credentials. The quota check immediately before starting reported the Free plan, 0/15 builds used for each platform, 0/30 total and no estimated overage. No purchases, new credentials, permissions or production track changes were made.
+
+The next Android step is to verify the successful AAB and obtain a fresh clear Play Publishing overview check, then update only the existing `alpha` track and `en-GB` listing in one validated edit. Preserve testers, countries, other tracks and listing fields; commit with `ERROR_IF_IN_REVIEW`. The upload response's SHA-256, when supplied, must match the downloaded artifact. For iOS, use the existing App Store Connect submission credentials if available; an unresolved Apple agreement may still prevent review or release and must not be accepted automatically.
