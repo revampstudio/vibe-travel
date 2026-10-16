@@ -93,3 +93,19 @@ CLOUDFLARE_ACCOUNT_ID=88842855bd2af0776d9f5de7ef06ff1e wrangler deploy --keep-va
 ```
 
 `--keep-vars` preserves dashboard variables, and secrets are retained by deployment. `--strict` prevents silently overriding conflicting remote settings; see the [Wrangler deployment reference](https://developers.cloudflare.com/workers/wrangler/commands/workers/#deploy). Do not change the compatibility date, bindings, routes or other runtime settings for this policy update. Verify the new date and sharing section at `https://vibe-travel-advisory-api.mitchellrbenjamin.workers.dev/privacy` and its `/privacy-policy` alias after publishing. If rollback is needed, the recorded active version above is the rollback target.
+
+## Android production build preparation
+
+On 17 October 2026, [EAS build `58a8a28e-d79b-48f9-8806-6e9939787cb2`](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/58a8a28e-d79b-48f9-8806-6e9939787cb2) started for Android production/STORE distribution from commit `4b95ba2e7e091a176da7e2ce23c9e81ffe954c8b`. Its status was `IN_PROGRESS` when recorded. App version is `0.2.0`; EAS remote versionCode advanced from `16` to `17`. The package remains `com.mitchellrben.vibetravelmobile`.
+
+- EAS reused the existing default Android keystore (`Build Credentials tuRCFhtvJb`) with `--freeze-credentials`. No keys, certificates or grants were created.
+- Existing production EAS Mapbox configuration matches the recovered public app token. EAS also loaded the existing PostHog variables. The advisory API uses the existing default Worker URL. No environment variables needed changing.
+- Existing Play service-account JSON is present at the submit profile's ignored `.secrets/play-store-service-account.json` path, validates structurally, and has mode `0600`. Its contents are not part of the repository/build archive.
+- The account reported the Free plan, 0 of 15 Android builds used and 0 of 30 total builds used before starting. No upgrade or additional purchase was made.
+- This is build preparation only. No EAS Submit, Play track update, rollout or store release has run. Native QA and the release gates above still apply; Google Play public production eligibility remains separate from an alpha test release.
+
+Build command used from `apps/mobile`:
+
+```sh
+eas build --platform android --profile production --non-interactive --freeze-credentials --no-wait --message 'Vibe Travel 0.2.0 sharing, comparison and astrology relaunch; native QA gate pending'
+```
