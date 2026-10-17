@@ -1,6 +1,6 @@
 # Vibe Travel 0.2.0 relaunch preparation
 
-Status: implementation, web QA and critical native QA passed; both replacement signed builds finished and the sharing privacy policy is live. Android 0.2.0 (18) and its en-GB listing update are submitted for closed-test review, with Google quick checks/review pending. They are not yet live or publicly released. The iOS 0.2.0 (19) IPA is prepared but not uploaded because Apple requires an in-effect agreement.
+Status: implementation, web QA and critical native QA passed; both replacement signed builds finished and the sharing privacy policy is live. Android 0.2.0 (18) and its en-GB listing update are submitted for closed-test review, with Google quick checks/review pending. They are not yet live or publicly released. iOS 0.2.0 (19) is uploaded and confirmed WAITING_FOR_REVIEW, with automatic public release after Apple approval. The earlier Apple agreement block has cleared.
 
 ## Request → implementation
 
@@ -123,20 +123,26 @@ Both builds were started after the completed web/iOS/Android critical QA gate fr
 | Platform | EAS build | Version | Status when recorded |
 | --- | --- | --- | --- |
 | Android | [35cc02da-149e-4ea9-a7f5-73d6ea9964bc](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/35cc02da-149e-4ea9-a7f5-73d6ea9964bc) | 0.2.0 (18) | FINISHED; alpha + en-GB changes submitted for review |
-| iOS | [eb804ed7-53bd-4b21-afa7-8d210a146aec](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/eb804ed7-53bd-4b21-afa7-8d210a146aec) | 0.2.0 (19) | FINISHED; upload blocked by Apple agreement |
+| iOS | [eb804ed7-53bd-4b21-afa7-8d210a146aec](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/builds/eb804ed7-53bd-4b21-afa7-8d210a146aec) | 0.2.0 (19) | FINISHED; uploaded, VALID, WAITING_FOR_REVIEW |
 
 Both use the existing production environment and frozen remote signing credentials. The quota check immediately before starting reported the Free plan, 0/15 builds used for each platform, 0/30 total and no estimated overage. No purchases, new credentials, permissions or production track changes were made.
 
-The authorized Android submission and the blocked iOS upload are recorded below. Existing testers, countries, unrelated tracks and unrelated listing fields remain preserved. No Apple agreement was accepted automatically.
+The authorized Android and iOS submissions are recorded below. Existing testers, countries, unrelated tracks and unrelated listing fields remain preserved. No Apple agreement was accepted automatically.
 
 
 ### iOS upload outcome
 
 The replacement iOS build finished successfully. The downloaded IPA passed ZIP integrity checks and its `Info.plist` confirms bundle `com.mitchellrben.vibetravelmobile`, version `0.2.0`, build `19`. SHA-256: `9d847bf588aa6627ba9cff5d04c6bcdcb25f0265d5ea61ee1c23033ca8182e6e`.
 
-The exact-build EAS Submit attempt reused the existing App Store Connect API key. [Submission `f11fe3b7-0eb8-4b27-b843-90fbadb8df1b`](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/submissions/f11fe3b7-0eb8-4b27-b843-90fbadb8df1b) ended `ERRORED`; Expo returned no error detail or logs. A fallback `asc builds upload` attempt using the existing local Keychain authentication failed while fetching app `6773780596`, before file transfer: “A required agreement is missing or has expired. This request requires an in-effect agreement that has not been signed or has expired.”
+The exact-build EAS Submit attempt reused the existing App Store Connect API key. [Submission `f11fe3b7-0eb8-4b27-b843-90fbadb8df1b`](https://expo.dev/accounts/mitchellrben/projects/vibe-travel-mobile/submissions/f11fe3b7-0eb8-4b27-b843-90fbadb8df1b) ended `ERRORED`; Expo returned no error detail or logs. A fallback `asc builds upload` attempt using the existing local configured authentication profile failed while fetching app `6773780596`, before file transfer: “A required agreement is missing or has expired. This request requires an in-effect agreement that has not been signed or has expired.”
 
-The IPA is prepared but **not uploaded**. No Apple agreement was accepted, no credential or grant was created, and no App Store metadata/review/release change occurred. Further Apple attempts are paused until the account holder resolves the agreement.
+The account holder subsequently accepted the required Apple conditions. API access recovered at `2026-10-17T00:01:11Z`; no credentials, keys, roles or agreements were changed by the agent. A further EAS Submit attempt returned an opaque error, so the same verified IPA was uploaded directly with the existing ASC authentication profile. Apple committed upload `be083694-257f-4107-becb-da2098b73855`, processed build `19` as **VALID / APP_STORE_ELIGIBLE**, and confirmed `usesNonExemptEncryption: false`. The linked SDK generated the same nonblocking location-purpose-string warning as previous approved builds; no code or artifact change was made.
+
+Version `0.2.0`, ID `f82a0527-2532-4cfc-addf-613c451ed4e7`, was created from the existing `0.1.3` metadata. Only its en-US name, subtitle, description, keywords, promotional text and release notes were updated. All four screenshot checksums and their order, review contact and notes, support/privacy URLs, free pricing and 175 territory settings were preserved. The two newly required age-rating fields, `socialMedia` and `socialMediaAgeRestricted`, were set to false on the new app-info record; all other age-rating values were retained. Existing App Privacy publication was verified on the official public Apple listing. Live version `0.1.3` was left unchanged.
+
+Strict submission validation passed with **zero errors, zero warnings and zero blockers**. The App Privacy API limitation remained informational and was covered by the published-listing evidence. The exact-build review dry run passed, followed by submission `4ef2cac7-32d2-4335-a538-161f1b3d6ea5` at **2026-10-17 00:06:11.499 UTC / 10:06 Brisbane**. A fresh read confirmed both the App Store version and the review submission are **WAITING_FOR_REVIEW**.
+
+The new version's release policy is **AFTER_APPROVAL**, with no phased release, so Apple approval will release it automatically. `store.config.json` now records `automaticRelease: true` and retains `phasedRelease: false`. Apple review remains pending; the new version is not yet public. Task-local evidence in `evidence/ios-resume/` includes the before/after metadata and settings, upload result, processed build, final validation, submission response, verified review state and release policy. This iOS follow-up did not inspect or change Google Play.
 
 
 ### Android closed-test submission outcome
